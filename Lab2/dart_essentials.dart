@@ -10,6 +10,8 @@ void main() async {
   print("--------------------\n");
   exercise2();
   print("--------------------\n");
+  exercise3();
+  print("--------------------\n");
   print("\n--- KẾT THÚC LAB 2 ---");
 }
 
@@ -67,3 +69,48 @@ void exercise2() {
   String result = (a < b && b == 10) ? "Điều kiện ĐÚNG" : "Điều kiện SAI";
   print("Toán tử 3 ngôi: $result");
 }
+
+// ------------------------------------------
+// Exercise 3 – Control Flow & Functions
+// ------------------------------------------
+void exercise3() {
+  print("Exercise 3: Control Flow & Functions");
+
+  // 1. If/Else
+  int score = 85;
+  if (score >= 90) {
+    print("Grade: A");
+  } else if (score >= 80) {
+    print("Grade: B");
+  } else {
+    print("Grade: C");
+  }
+
+  // 2. Switch case
+  int day = 3;
+  switch (day) {
+    case 1: print("Monday"); break;
+    case 3: print("Wednesday"); break;
+    default: print("Other day");
+  }
+
+  // 3. Loops (Vòng lặp)
+  List<String> fruits = ["Apple", "Banana", "Cherry"];
+
+  // Vòng lặp For-in (Rất hay dùng trong Dart)
+  for (String fruit in fruits) {
+    print("For-in loop: $fruit");
+  }
+
+  // 4. Gọi hàm
+  print("Kết quả hàm bình thường (5x4): ${multiply(5, 4)}");
+  print("Kết quả hàm Arrow (10-3): ${subtract(10, 3)}");
+}
+
+// Hàm bình thường
+int multiply(int x, int y) {
+  return x * y;
+}
+
+// Hàm mũi tên (Arrow function) - Rút gọn cho hàm chỉ có 1 dòng return
+int subtract(int x, int y) => x - y;
