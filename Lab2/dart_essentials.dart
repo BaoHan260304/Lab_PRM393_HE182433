@@ -12,6 +12,8 @@ void main() async {
   print("--------------------\n");
   exercise3();
   print("--------------------\n");
+  exercise4();
+  print("--------------------\n");
   print("\n--- KẾT THÚC LAB 2 ---");
 }
 
@@ -114,3 +116,47 @@ int multiply(int x, int y) {
 
 // Hàm mũi tên (Arrow function) - Rút gọn cho hàm chỉ có 1 dòng return
 int subtract(int x, int y) => x - y;
+
+// ------------------------------------------
+// Exercise 4 – Intro to OOP
+// ------------------------------------------
+class Car {
+  String brand;
+
+  // Constructor
+  Car(this.brand);
+
+  // Named Constructor (Constructor có tên riêng)
+  Car.unknown() : brand = "Unknown Brand";
+
+  void startEngine() {
+    print("Car engine started: $brand");
+  }
+}
+
+// Subclass kế thừa từ Car
+class ElectricCar extends Car {
+  int batteryCapacity;
+
+  // Constructor gọi đến super() của lớp cha
+  ElectricCar(String brand, this.batteryCapacity) : super(brand);
+
+  // Ghi đè (override) hàm của lớp cha
+  @override
+  void startEngine() {
+    print("Electric car ($brand) silently started with ${batteryCapacity}kWh battery.");
+  }
+}
+
+void exercise4() {
+  print("Exercise 4: Intro to OOP");
+
+  Car myCar = Car("Toyota");
+  myCar.startEngine();
+
+  Car mysteriousCar = Car.unknown();
+  mysteriousCar.startEngine();
+
+  ElectricCar myTesla = ElectricCar("Tesla", 100);
+  myTesla.startEngine();
+}
