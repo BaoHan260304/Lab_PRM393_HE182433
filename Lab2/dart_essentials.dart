@@ -14,6 +14,8 @@ void main() async {
   print("--------------------\n");
   exercise4();
   print("--------------------\n");
+  // Tính năng đợi (async/await) nên dùng await ở đây
+  await exercise5();
   print("\n--- KẾT THÚC LAB 2 ---");
 }
 
@@ -159,4 +161,46 @@ void exercise4() {
 
   ElectricCar myTesla = ElectricCar("Tesla", 100);
   myTesla.startEngine();
+}
+
+// ------------------------------------------
+// Exercise 5 – Async, Future, Null Safety & Streams
+// ------------------------------------------
+Future<void> exercise5() async {
+  print("Exercise 5: Async, Future, Null Safety & Streams");
+
+  // 1. Null Safety
+  String? nullableString; // Dấu ? nghĩa là biến này có thể bị null
+
+  // Toán tử ?? (Nếu bên trái null thì lấy chữ bên phải)
+  String safeString = nullableString ?? "Giá trị mặc định";
+  print("Null Safety test: $safeString");
+
+  // 2. Async/Await & Future
+  print("Đang tải dữ liệu mạng... (mô phỏng mất 2 giây)");
+  String data = await fetchData();
+  print("Dữ liệu nhận được: $data");
+
+  // 3. Streams
+  print("Bắt đầu nghe luồng dữ liệu (Stream):");
+  Stream<int> numberStream = countNumbers();
+
+  // Lắng nghe (listen) các giá trị được bắn ra từ Stream
+  await for (int number in numberStream) {
+    print("Stream nhận được số: $number");
+  }
+}
+
+// Hàm mô phỏng tải dữ liệu mất thời gian (2 giây)
+Future<String> fetchData() async {
+  await Future.delayed(const Duration(seconds: 2));
+  return "Dữ liệu từ máy chủ API";
+}
+
+// Hàm Stream mô phỏng bắn ra dữ liệu liên tục sau mỗi 1 giây
+Stream<int> countNumbers() async* {
+  for (int i = 1; i <= 3; i++) {
+    await Future.delayed(const Duration(seconds: 1));
+    yield i; // yield dùng để bắn dữ liệu ra liên tục
+  }
 }
