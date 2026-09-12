@@ -1,0 +1,31 @@
+# ==========================================
+# CẤU HÌNH .GITIGNORE CHO THƯ MỤC GỐC
+# ==========================================
+
+# 1. Các file cấu hình của phần mềm IDE (Không Push lên mạng tránh lỗi giao diện)
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# 2. Các file rác hệ điều hành (Windows, macOS)
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 3. Các file rác sinh ra tạm thời khi mở Microsoft Word/Excel/PowerPoint
+~$*.doc
+~$*.docx
+~$*.xls
+~$*.xlsx
+~$*.ppt
+~$*.pptx
+
+# 4. Các file nén (Nếu bạn zip bài nộp trên máy thì đừng đẩy bản zip đó lên Git)
+*.zip
+*.rar
+*.7z
+
+# Lưu ý: Các thư mục rác riêng của Flutter (như /build/) 
+# đã được quản lý bởi các file .gitignore nằm bên trong từng bài Lab.
