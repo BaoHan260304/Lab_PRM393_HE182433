@@ -27,5 +27,8 @@ desktop.ini
 *.rar
 *.7z
 
+# 5. Các file rác của Dart sinh ra tự động
+.dart_tool/
+
 # Lưu ý: Các thư mục rác riêng của Flutter (như /build/) 
 # đã được quản lý bởi các file .gitignore nằm bên trong từng bài Lab.
