@@ -43,6 +43,40 @@ class ProductRepository {
   }
 }
 
+// ==========================================
+// EXERCISE 2: User Repository with JSON
+// ==========================================
+class User {
+  final String name;
+  final String email;
+
+  User({required this.name, required this.email});
+
+  // Factory constructor để parse dữ liệu từ JSON map
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      name: json['name'] as String,
+      email: json['email'] as String,
+    );
+  }
+
+  @override
+  String toString() => 'User(name: $name, email: $email)';
+}
+
+Future<List<User>> fetchUsersFromJson() async {
+  // Chuỗi JSON mô phỏng trả về từ API
+  String jsonString = '''
+  [
+    {"name": "Quan", "email": "quan@example.com"},
+    {"name": "Binh", "email": "binh@example.com"}
+  ]
+  ''';
+
+  await Future.delayed(Duration(seconds: 1)); // Mô phỏng độ trễ mạng
+  List<dynamic> parsedList = jsonDecode(jsonString);
+  return parsedList.map((json) => User.fromJson(json)).toList();
+}
 
 // ==========================================
 // MAIN
@@ -66,7 +100,13 @@ void main() async {
   repo.addProduct(Product(3, 'Tablet', 299.9));
   
   // Chờ một xíu xiu cho stream in ra màn hình
-  await Future.delayed(Duration(milliseconds: 50)); 
+  await Future.delayed(Duration(milliseconds: 50));
+
+  print("\n=== EXERCISE 2: User Repository with JSON ===");
+  List<User> users = await fetchUsersFromJson();
+  for (var user in users) {
+    print(user);
+  }
 
   print("\n--- KẾT THÚC LAB 3 ---");
 }
