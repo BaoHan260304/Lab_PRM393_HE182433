@@ -94,6 +94,23 @@ void runEventLoopDemo() {
 }
 
 // ==========================================
+// EXERCISE 4: Stream Transformation
+// ==========================================
+Future<void> runStreamTransformation() async {
+  // Tạo luồng số từ 1 đến 5
+  Stream<int> numbers = Stream.fromIterable([1, 2, 3, 4, 5]);
+
+  // Transform: Lọc số chẵn, sau đó bình phương
+  Stream<int> transformedStream = numbers
+      .where((n) => n % 2 == 0)   // Chỉ cho phép số 2, 4 đi qua
+      .map((n) => n * n);         // Bình phương chúng lên thành 4, 16
+
+  await for (var value in transformedStream) {
+    print("Stream transformed value: $value");
+  }
+}
+
+// ==========================================
 // MAIN
 // ==========================================
 void main() async {
@@ -127,6 +144,9 @@ void main() async {
   runEventLoopDemo();
   // Đợi Event loop in xong trước khi chạy bài 4
   await Future.delayed(Duration(milliseconds: 100));
+
+  print("\n=== EXERCISE 4: Stream Transformation ===");
+  await runStreamTransformation();
 
   print("\n--- KẾT THÚC LAB 3 ---");
 }
