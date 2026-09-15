@@ -79,6 +79,21 @@ Future<List<User>> fetchUsersFromJson() async {
 }
 
 // ==========================================
+// EXERCISE 3: Async + Microtask Debugging
+// ==========================================
+void runEventLoopDemo() {
+  // Code đồng bộ chạy trước -> Microtask chạy thứ hai -> Future (Event Queue) chạy cuối cùng.
+
+  // Future (Event Queue - Chạy sau cùng)
+  Future(() => print("2. Future hoàn thành (Thuộc Event Queue - Rìa ngoài cùng)"));
+
+  // Microtask (Ưu tiên cao hơn Event Queue)
+  scheduleMicrotask(() => print("1. Microtask hoàn thành (Ưu tiên cắt hàng)"));
+
+  print("0. Đồng bộ (Synchronous) chạy ngay lập tức");
+}
+
+// ==========================================
 // MAIN
 // ==========================================
 void main() async {
@@ -107,6 +122,11 @@ void main() async {
   for (var user in users) {
     print(user);
   }
+
+  print("\n=== EXERCISE 3: Async + Microtask Debugging ===");
+  runEventLoopDemo();
+  // Đợi Event loop in xong trước khi chạy bài 4
+  await Future.delayed(Duration(milliseconds: 100));
 
   print("\n--- KẾT THÚC LAB 3 ---");
 }
