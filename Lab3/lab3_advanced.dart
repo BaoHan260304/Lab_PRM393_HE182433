@@ -111,6 +111,24 @@ Future<void> runStreamTransformation() async {
 }
 
 // ==========================================
+// EXERCISE 5: Factory Constructors & Cache
+// ==========================================
+class Settings {
+  // Lưu trữ instance duy nhất (Singleton Pattern)
+  static final Settings _instance = Settings._internal();
+
+  String theme = "Light";
+
+  // Factory constructor kiểm tra, nếu đã có sẵn instance thì trả về đồ cũ
+  factory Settings() {
+    return _instance;
+  }
+
+  // Private constructor (Chỉ được gọi 1 lần duy nhất từ bên trong class)
+  Settings._internal();
+}
+
+// ==========================================
 // MAIN
 // ==========================================
 void main() async {
@@ -147,6 +165,18 @@ void main() async {
 
   print("\n=== EXERCISE 4: Stream Transformation ===");
   await runStreamTransformation();
+
+  print("\n=== EXERCISE 5: Factory Constructors & Cache ===");
+  Settings config1 = Settings();
+  Settings config2 = Settings();
+
+  config1.theme = "Dark (Đã sửa từ config1)";
+
+  print("Theme của config1: ${config1.theme}");
+  print("Theme của config2: ${config2.theme}");
+  print("Hai biến config này có trỏ về cùng một vùng nhớ không? -> ${identical(config1, config2)}");
+
+  repo.dispose();
 
   print("\n--- KẾT THÚC LAB 3 ---");
 }
