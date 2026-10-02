@@ -32,7 +32,7 @@ class LayoutBasicsDemo extends StatelessWidget {
           ),
           
           // TẦNG 2: Băng chuyền danh sách (ListView)
-          // Bắt buộc phải bọc ListView trong Expanded.
+          // Ex5: Bắt buộc phải bọc ListView trong Expanded.
           // Nếu không bọc, App sẽ nổ tung vì ListView không biết mình được kéo dài tới đâu.
           Expanded(
             child: ListView.builder(

@@ -1,0 +1,17 @@
+BÁO CÁO BÀI 5 - FIX 4 LỖI UI KINH ĐIỂN TRONG FLUTTER
+
+1. Lỗi ListView nằm trong Column bị sập màn hình (Đã fix ở Bài 3)
+- Thằng ListView bản chất của nó là thích dài vô tận (để cuộn). Mà thằng Column cũng là một cái trục dọc không có giới hạn đáy. Hai thằng lồng vào nhau không biết chiều cao tới đâu nên app sẽ văng lỗi đỏ lòm (RenderFlex Overflow).
+- Cách sửa: Lấy "Expanded" bọc bên ngoài ListView. Việc này giúp ép ListView chỉ được phình ra chiếm nốt phần khoảng trống còn lại của màn hình.
+
+2. Lỗi tràn màn hình sọc vàng đen (Đã fix ở Bài 2)
+- Lúc code trên màn hình dài thì không sao, nhưng nếu người dùng xài máy phụ kiện nhỏ, hoặc xoay ngang màn hình, hoặc khi bàn phím ảo bật lên... thì nội dung Column bị trào ra ngoài mép. Lúc đó máy sẽ báo lỗi sọc vàng đen dưới đáy.
+- Cách sửa: Bọc cả cái Column đó vào trong "SingleChildScrollView". Nó sẽ biến màn hình bị khoá cứng thành màn hình vuốt cuộn được. Khỏi lo bị tràn nữa.
+
+3. Lỗi thao tác biến đổi nhưng giao diện bị đơ (Đã fix ở Bài 2)
+- Khi người dùng kéo Slider hay bật Switch, giá trị biến trong RAM có thay đổi thật, nhưng màn hình thì chả biết gì nên đứng im.
+- Cách sửa: Phải nhét cái dòng code cập nhật biến đó vào bên trong hàm "setState(() { ... })". Hàm này giúp UI update ngay lập tức.
+
+4. Lỗi DatePicker không biết hiển thị ở đâu (Đã fix ở Bài 2)
+- Hàm showDatePicker() muốn vẽ cái pop-up Lịch thì phải biết cái toạ độ "context" hiện tại của App. Nếu gọi hàm này lung tung ở ngoài hoặc sai chỗ thì App không biết vẽ ở đâu, dẫn đến crash.
+- Cách sửa: Gọi hàm showDatePicker ở bên trong State của một StatefulWidget. Ở trong State này thì cái biến "context" luôn luôn có sẵn và hợp lệ.
