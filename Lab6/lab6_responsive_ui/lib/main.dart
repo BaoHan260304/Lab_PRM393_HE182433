@@ -31,6 +31,9 @@ class GenreScreen extends StatefulWidget {
 }
 
 class _GenreScreenState extends State<GenreScreen> {
+  // Biến lưu trữ từ khoá tìm kiếm (Step 4)
+  String searchQuery = '';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,24 +55,39 @@ class _GenreScreenState extends State<GenreScreen> {
               // ---------------------------------------------------------
               // CHỖ TRỐNG ĐỂ LÁT NỮA LẮP RÁP CÁC BỘ PHẬN Ở STEP SAU VÀO
               // ---------------------------------------------------------
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.yellow[100],
-                child: const Text('Thanh tìm kiếm sẽ lắp ở đây (Step 4) 🔍'),
+              // --- STEP 4: THANH TÌM KIẾM (SEARCH BAR) ---
+              TextField(
+                onChanged: (value) {
+                  // Gõ tới đâu, cập nhật biến tới đó để bắt giao diện vẽ lại
+                  setState(() {
+                    searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Nhập tên phim cần tìm...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30), // Bo góc tròn vo
+                    borderSide: BorderSide.none, // Xoá viền đen
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
               
               Container(
                 padding: const EdgeInsets.all(10),
                 color: Colors.green[100],
-                child: const Text('Bầy nút Thể loại sẽ lắp ở đây (Step 5) 🏷️'),
+                child: const Text('Bầy nút Thể loại sẽ lắp ở đây (Step 5)'),
               ),
               const SizedBox(height: 10),
               
               Container(
                 padding: const EdgeInsets.all(10),
                 color: Colors.blue[100],
-                child: const Text('Nút Sắp xếp sẽ lắp ở đây (Step 6) ↕️'),
+                child: const Text('Nút Sắp xếp sẽ lắp ở đây (Step 6)'),
               ),
               const SizedBox(height: 20),
               
