@@ -33,6 +33,10 @@ class GenreScreen extends StatefulWidget {
 class _GenreScreenState extends State<GenreScreen> {
   // Biến lưu trữ từ khoá tìm kiếm (Step 4)
   String searchQuery = '';
+  
+  // Danh sách thể loại và giỏ chứa các thể loại đang được chọn (Step 5)
+  final List<String> allGenres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Romance', 'Crime', 'Adventure'];
+  Set<String> selectedGenres = {};
 
   @override
   Widget build(BuildContext context) {
@@ -77,10 +81,30 @@ class _GenreScreenState extends State<GenreScreen> {
               ),
               const SizedBox(height: 10),
               
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.green[100],
-                child: const Text('Bầy nút Thể loại sẽ lắp ở đây (Step 5)'),
+              // --- STEP 5: BẦY NÚT THỂ LOẠI (GENRE CHIPS) ---
+              // Dùng bùa Wrap để nếu chật quá thì các nút tự động rớt xuống dòng dưới
+              Wrap(
+                spacing: 8.0, // Khoảng cách ngang giữa các nút
+                runSpacing: 0.0, // Khoảng cách dọc khi rớt dòng
+                children: allGenres.map((genre) {
+                  final isSelected = selectedGenres.contains(genre); // Kiểm tra xem nút này có đang được chọn không
+                  return FilterChip(
+                    label: Text(genre),
+                    selected: isSelected,
+                    selectedColor: Colors.deepPurple[100], // Màu nền khi được chọn
+                    checkmarkColor: Colors.deepPurple, // Màu dấu tick
+                    onSelected: (bool selected) {
+                      // Bấm vào thì nhét vào giỏ, bỏ bấm thì lôi khỏi giỏ, và báo vẽ lại UI
+                      setState(() {
+                        if (selected) {
+                          selectedGenres.add(genre);
+                        } else {
+                          selectedGenres.remove(genre);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 10),
               
