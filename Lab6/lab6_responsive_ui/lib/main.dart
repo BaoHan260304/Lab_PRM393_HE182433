@@ -168,11 +168,79 @@ class _GenreScreenState extends State<GenreScreen> {
               ),
               const SizedBox(height: 20),
               
+              // --- STEP 8: CỖ MÁY CO GIÃN LAYOUT (RESPONSIVE) ---
+              // Bùa Expanded giúp danh sách phim chiếm nốt toàn bộ khoảng trống còn lại của màn hình
               Expanded(
-                child: Container(
-                  width: double.infinity,
-                  color: Colors.red[100],
-                  child: const Center(child: Text('Danh sách phim sẽ hiển thị ở đây (Step 8) 🎬')),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Cài đặt ranh giới (Breakpoint): 800 pixel
+                    if (constraints.maxWidth < 800) {
+                      // 1. DÀNH CHO ĐIỆN THOẠI (Màn hình hẹp) -> Dùng ListView (1 cột dọc)
+                      return ListView.builder(
+                        itemCount: visibleMovies.length,
+                        itemBuilder: (context, index) {
+                          final movie = visibleMovies[index];
+                          return Card(
+                            elevation: 3,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(8),
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(5),
+                                child: Image.network(movie.posterUrl, width: 60, height: 90, fit: BoxFit.cover),
+                              ),
+                              title: Text(movie.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              subtitle: Text('Năm: ${movie.year}  •  ⭐ ${movie.rating}\n${movie.genres.join(', ')}'),
+                              isThreeLine: true,
+                            ),
+                          );
+                        },
+                      );
+                    } else {
+                      // 2. DÀNH CHO TABLET / WEB (Màn hình rộng) -> Dùng GridView (2 cột)
+                      return GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2, // Dàn thành 2 cột
+                          childAspectRatio: 2.5 / 1, // Tỷ lệ khung hình của mỗi thẻ phim
+                          crossAxisSpacing: 16, // Khoảng cách ngang
+                          mainAxisSpacing: 16, // Khoảng cách dọc
+                        ),
+                        itemCount: visibleMovies.length,
+                        itemBuilder: (context, index) {
+                          final movie = visibleMovies[index];
+                          return Card(
+                            elevation: 4,
+                            child: Row(
+                              children: [
+                                // Ảnh Poster nằm bên trái
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                                  child: Image.network(movie.posterUrl, width: 100, height: double.infinity, fit: BoxFit.cover),
+                                ),
+                                const SizedBox(width: 12),
+                                // Nội dung chữ nằm bên phải
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(movie.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                      const SizedBox(height: 8),
+                                      Text('Năm xuất bản: ${movie.year}', style: TextStyle(color: Colors.grey[700])),
+                                      const SizedBox(height: 4),
+                                      Text('Điểm số: ⭐ ${movie.rating}', style: TextStyle(color: Colors.amber[800], fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 8),
+                                      Text(movie.genres.join(', '), style: const TextStyle(color: Colors.deepPurple, fontSize: 13, fontStyle: FontStyle.italic)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    }
+                  },
                 ),
               ),
             ],
