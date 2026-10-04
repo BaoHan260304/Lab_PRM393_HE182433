@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'movie_model.dart';
 
 void main() {
   runApp(const ResponsiveMovieApp());
@@ -44,6 +45,34 @@ class _GenreScreenState extends State<GenreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // --- STEP 7: NÃO BỘ XỬ LÝ LOGIC (LỌC VÀ SẮP XẾP) ---
+    // Khối code này được đặt ngay trong hàm build để mỗi lần gọi setState, 
+    // App sẽ tự động chạy lại bộ lọc và trả ra danh sách phim mới nhất.
+    
+    List<Movie> visibleMovies = allMovies.where((movie) {
+      // 1. Lọc theo chữ (Không phân biệt hoa thường)
+      final matchesSearch = movie.title.toLowerCase().contains(searchQuery.toLowerCase());
+      
+      // 2. Lọc theo thể loại
+      // Nếu giỏ trống -> Hợp lệ. Nếu có -> Phim phải chứa ít nhất 1 thể loại nằm trong giỏ.
+      final matchesGenre = selectedGenres.isEmpty || 
+          movie.genres.any((g) => selectedGenres.contains(g));
+          
+      return matchesSearch && matchesGenre;
+    }).toList();
+
+    // 3. Sắp xếp danh sách phim vừa lọc
+    if (selectedSort == 'A-Z') {
+      visibleMovies.sort((a, b) => a.title.compareTo(b.title));
+    } else if (selectedSort == 'Z-A') {
+      visibleMovies.sort((a, b) => b.title.compareTo(a.title));
+    } else if (selectedSort == 'Year') {
+      visibleMovies.sort((a, b) => b.year.compareTo(a.year)); // Phim cũ lên trước (có thể đảo b.year và a.year để phim mới lên trước)
+    } else if (selectedSort == 'Rating') {
+      visibleMovies.sort((a, b) => b.rating.compareTo(a.rating)); 
+    }
+    // ----------------------------------------------------
+
     return Scaffold(
       backgroundColor: Colors.grey[50], // Màu nền hơi xám nhẹ cho sang
       // Khiên SafeArea giúp nội dung không bị lẹm vào camera tai thỏ
