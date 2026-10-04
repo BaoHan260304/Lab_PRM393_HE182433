@@ -35,14 +35,14 @@ final List<Movie> allMovies = [
     title: 'Interstellar',
     year: 2014,
     genres: ['Adventure', 'Drama', 'Sci-Fi'],
-    posterUrl: 'https://image.tmdb.org/t/p/w500/gEU2QlsEOWepVNzMU5cR8ZqO4fS.jpg',
+    posterUrl: 'https://placehold.co/400x600/292929/FFFFFF/png?text=Interstellar',
     rating: 8.6,
   ),
   Movie(
     title: 'The Hangover',
     year: 2009,
     genres: ['Comedy'],
-    posterUrl: 'https://image.tmdb.org/t/p/w500/jj2B8v4Qv5A5sNqU06Cq8jX5G1Z.jpg',
+    posterUrl: 'https://placehold.co/400x600/292929/FFFFFF/png?text=The+Hangover',
     rating: 7.7,
   ),
   Movie(
