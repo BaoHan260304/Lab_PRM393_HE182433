@@ -38,6 +38,10 @@ class _GenreScreenState extends State<GenreScreen> {
   final List<String> allGenres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Romance', 'Crime', 'Adventure'];
   Set<String> selectedGenres = {};
 
+  // Tuỳ chọn sắp xếp và biến lưu trạng thái hiện tại (Step 6)
+  final List<String> sortOptions = ['A-Z', 'Z-A', 'Year', 'Rating'];
+  String selectedSort = 'A-Z';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,10 +112,30 @@ class _GenreScreenState extends State<GenreScreen> {
               ),
               const SizedBox(height: 10),
               
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.blue[100],
-                child: const Text('Nút Sắp xếp sẽ lắp ở đây (Step 6)'),
+              // --- STEP 6: NÚT SẮP XẾP (SORT DROPDOWN) ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text('Sort by: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 10),
+                  DropdownButton<String>(
+                    value: selectedSort, // Hiển thị giá trị đang được chọn
+                    items: sortOptions.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      // Bấm chọn sắp xếp kiểu mới thì cập nhật biến và vẽ lại UI
+                      if (newValue != null) {
+                        setState(() {
+                          selectedSort = newValue;
+                        });
+                      }
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               
