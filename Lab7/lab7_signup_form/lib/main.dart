@@ -32,18 +32,24 @@ class _SignupScreenState extends State<SignupScreen> {
   // CẦU DAO TỔNG: Quản lý Form
   final _formKey = GlobalKey<FormState>();
 
-  // THƯ KÝ THEO DÕI MẬT KHẨU
+  // CÁC THƯ KÝ THEO DÕI NỘI DUNG (CONTROLLERS)
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // CÁC TRẠM THU PHÁT SÓNG ĐIỀU HƯỚNG CON TRỎ (FOCUS NODES)
+  // TRẠM THU PHÁT SÓNG ĐIỀU HƯỚNG CON TRỎ (FOCUS NODES)
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _emailFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
   final FocusNode _confirmPasswordFocus = FocusNode();
 
+  // BIẾN TRẠNG THÁI (STATE)
+  bool _obscurePassword = true; // Trạng thái ẩn/hiện mật khẩu
+  bool _obscureConfirmPassword = true; // Trạng thái ẩn/hiện xác nhận mật khẩu
+  bool _isCheckingEmail = false; // Trạng thái kiểm tra email bất đồng bộ (Loading)
+
   @override
   void dispose() {
-    // Dọn sạch rác bộ nhớ khi đóng màn hình
+    _emailController.dispose();
     _passwordController.dispose();
     _nameFocus.dispose();
     _emailFocus.dispose();
@@ -52,7 +58,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  // ================= CÁC TRẠM KIỂM SOÁT VALIDATOR =================
+  // ================= CÁC TRẠM KIỂM SOÁT ĐỒNG BỘ (SYNC VALIDATORS) =================
 
   String? _validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -94,19 +100,51 @@ class _SignupScreenState extends State<SignupScreen> {
     return null;
   }
 
-  void _submitForm() {
-    // Bỏ focus khi nộp bài để bàn phím tự hạ xuống
+  // ================= CỖ MÁY XỬ LÝ SUBMIT & ASYNC VALIDATION =================
+
+  Future<void> _submitForm() async {
+    // 1. Hạ bàn phím ảo xuống
     FocusScope.of(context).unfocus();
 
+    // 2. Chạy kiểm tra đồng bộ tại chỗ (Form validation)
     final isValid = _formKey.currentState!.validate();
     if (!isValid) {
       return;
     }
 
+    // 3. Bật chế độ Loading: Đổi nút bấm thành vòng xoay và khóa nút
+    setState(() {
+      _isCheckingEmail = true;
+    });
+
+    // 4. Giả lập gửi request lên server (chờ 2 giây)
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    // 5. Quy tắc giả lập: Nếu email bắt đầu bằng "taken" (ví dụ: taken@gmail.com) -> Đã tồn tại!
+    final email = _emailController.text.trim().toLowerCase();
+    if (email.startsWith('taken')) {
+      setState(() {
+        _isCheckingEmail = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This email is already taken. Please try another!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    // 6. Hoàn tất đăng ký thành công
+    setState(() {
+      _isCheckingEmail = false;
+    });
     _formKey.currentState!.save();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Step 5: Focus management & keyboard navigation verified!'),
+        content: Text('Signup successful! Welcome to the app!'),
         backgroundColor: Colors.green,
       ),
     );
@@ -114,7 +152,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // BỌC GESTURE DETECTOR BÊN NGOÀI CÙNG: Chạm ra bất kỳ chỗ trống nào cũng tự thụt bàn phím
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -138,7 +175,6 @@ class _SignupScreenState extends State<SignupScreen> {
                     focusNode: _nameFocus,
                     textInputAction: TextInputAction.next,
                     onFieldSubmitted: (_) {
-                      // Bấm Next trên bàn phím -> Bay con trỏ sang ô Email
                       FocusScope.of(context).requestFocus(_emailFocus);
                     },
                     decoration: const InputDecoration(
@@ -153,11 +189,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
                   // 2. Email
                   TextFormField(
+                    controller: _emailController,
                     focusNode: _emailFocus,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     onFieldSubmitted: (_) {
-                      // Bấm Next -> Bay con trỏ sang ô Password
                       FocusScope.of(context).requestFocus(_passwordFocus);
                     },
                     decoration: const InputDecoration(
@@ -170,55 +206,84 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Password
+                  // 3. Password (Có mắt thần ẩn/hiện)
                   TextFormField(
-                    focusNode: _passwordFocus,
                     controller: _passwordController,
-                    obscureText: true,
+                    focusNode: _passwordFocus,
+                    obscureText: _obscurePassword,
                     textInputAction: TextInputAction.next,
                     onFieldSubmitted: (_) {
-                      // Bấm Next -> Bay con trỏ sang ô Confirm Password
                       FocusScope.of(context).requestFocus(_confirmPasswordFocus);
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'At least 8 chars & 1 digit',
-                      prefixIcon: Icon(Icons.lock),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: _validatePassword,
                   ),
                   const SizedBox(height: 16),
 
-                  // 4. Confirm Password
+                  // 4. Confirm Password (Có mắt thần ẩn/hiện)
                   TextFormField(
                     focusNode: _confirmPasswordFocus,
-                    obscureText: true,
+                    obscureText: _obscureConfirmPassword,
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) {
-                      // Bấm Done trên bàn phím -> Kích hoạt lệnh nộp bài luôn!
-                      _submitForm();
+                      if (!_isCheckingEmail) {
+                        _submitForm();
+                      }
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Confirm Password',
                       hintText: 'Re-enter password',
-                      prefixIcon: Icon(Icons.lock_outline),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: _validateConfirmPassword,
                   ),
                   const SizedBox(height: 24),
 
-                  // 5. Submit Button
+                  // 5. Submit Button (Có hiệu ứng Loading khi check Async)
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    onPressed: _submitForm,
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    // Khóa nút bấm khi đang kiểm tra email
+                    onPressed: _isCheckingEmail ? null : _submitForm,
+                    child: _isCheckingEmail
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Sign Up',
+                            style: TextStyle(fontSize: 16),
+                          ),
                   ),
                 ],
               ),
