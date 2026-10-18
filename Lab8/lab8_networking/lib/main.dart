@@ -1,8 +1,5 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'api_service.dart';
 import 'post_model.dart';
 
 void main() {
@@ -34,74 +31,47 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
+  // KHỞI TẠO ĐỐI TÁC DỊCH VỤ MẠNG (Service Layer)
+  final ApiService _apiService = ApiService();
   late Future<List<Post>> _postsFuture;
 
   @override
   void initState() {
     super.initState();
-    _postsFuture = _fetchPosts();
+    _loadPosts();
   }
 
-  // CẦN GẠT THỬ LẠI: Kích hoạt lại tiến trình nạp dữ liệu từ đầu
-  void _retryFetch() {
+  @override
+  void dispose() {
+    _apiService.dispose();
+    super.dispose();
+  }
+
+  // GỌI PHÒNG BAN DỊCH VỤ ĐỂ LẤY DỮ LIỆU
+  void _loadPosts() {
     setState(() {
-      _postsFuture = _fetchPosts();
+      _postsFuture = _apiService.getPosts();
     });
-  }
-
-  // HÀM BƠM HÚT MẠNG CÓ CẢM BIẾN BẮT LỖI & TIMEOUT (Lab 8.3)
-  Future<List<Post>> _fetchPosts() async {
-    try {
-      final url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
-
-      // CẢM BIẾN CHỐNG TREO MÁY: Quá 10 giây không có mạng -> Tự ngắt kết nối
-      final response = await http.get(url).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonList = jsonDecode(response.body);
-        return jsonList
-            .map((item) => Post.fromJson(item as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw HttpException(
-          'Máy chủ phản hồi mã lỗi ${response.statusCode}: Không thể lấy dữ liệu.',
-        );
-      }
-    } on SocketException {
-      // Bắt lỗi mất kết nối Internet hoàn toàn (chế độ máy bay, đứt wifi)
-      throw const SocketException(
-        'Không có kết nối Internet! Vui lòng kiểm tra lại Wifi/4G của bạn.',
-      );
-    } on TimeoutException {
-      // Bắt lỗi mạng quá yếu hoặc máy chủ bị sập
-      throw TimeoutException(
-        'Kết nối mạng quá chậm hoặc máy chủ không phản hồi (Timeout).',
-      );
-    } catch (e) {
-      // Các lỗi ngoại lệ phát sinh khác
-      throw Exception('Đã xảy ra sự cố không xác định: $e');
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Posts (Error Handling & Retry)'),
+        title: const Text('Posts (Clean ApiService)'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          // Nút bấm làm mới nhanh trên thanh công cụ
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Tải lại',
-            onPressed: _retryFetch,
+            tooltip: 'Tải lại bài viết',
+            onPressed: _loadPosts,
           ),
         ],
       ),
       body: FutureBuilder<List<Post>>(
         future: _postsFuture,
         builder: (context, snapshot) {
-          // 1. TRẠNG THÁI CHỜ MẠNG (Loading State)
+          // 1. TRẠNG THÁI ĐANG TẢI (Loading)
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: Column(
@@ -110,7 +80,7 @@ class _PostListScreenState extends State<PostListScreen> {
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
                   Text(
-                    'Đang tải bài viết...',
+                    'Đang kết nối qua ApiService...',
                     style: TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 ],
@@ -118,7 +88,7 @@ class _PostListScreenState extends State<PostListScreen> {
             );
           }
 
-          // 2. TRẠNG THÁI GẶP SỰ CỐ + NÚT BẤM THỬ LẠI (Error State & Retry)
+          // 2. TRẠNG THÁI LỖI (Error & Retry)
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -141,10 +111,7 @@ class _PostListScreenState extends State<PostListScreen> {
                     const SizedBox(height: 16),
                     const Text(
                       'Rất tiếc! Đã có lỗi xảy ra',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -153,7 +120,6 @@ class _PostListScreenState extends State<PostListScreen> {
                       style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
                     ),
                     const SizedBox(height: 24),
-                    // CẦN GẠT THỬ LẠI (RETRY BUTTON)
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
@@ -163,7 +129,7 @@ class _PostListScreenState extends State<PostListScreen> {
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: _retryFetch,
+                      onPressed: _loadPosts,
                       icon: const Icon(Icons.refresh),
                       label: const Text(
                         'Thử lại ngay (Retry)',
@@ -176,7 +142,7 @@ class _PostListScreenState extends State<PostListScreen> {
             );
           }
 
-          // 3. TRẠNG THÁI DỮ LIỆU ĐÃ VỀ KHO (Data State)
+          // 3. TRẠNG THÁI CÓ DỮ LIỆU (Success Data)
           if (snapshot.hasData) {
             final posts = snapshot.data!;
 
