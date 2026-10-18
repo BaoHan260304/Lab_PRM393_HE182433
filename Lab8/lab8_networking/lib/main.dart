@@ -32,50 +32,28 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  // DANH SÁCH BỘ NHỚ LƯU TRỮ CÁC BÀI POST ĐÃ ĐÚC KHUÔN THÀNH CÔNG
-  List<Post> _posts = [];
-  String _statusMessage = 'Chưa có bài viết nào được nạp vào bộ nhớ.';
-  bool _isLoading = false;
+  // BIẾN LƯU TRỮ TIẾN TRÌNH FUTURE: Giúp FutureBuilder không bị gọi lại nhiều lần vô cớ
+  late Future<List<Post>> _postsFuture;
 
-  // HÀM BƠM HÚT & ĐÚC KHUÔN JSON THÀNH LIST<POST> (Lab 8.2)
-  Future<void> _fetchAndParsePosts() async {
-    setState(() {
-      _isLoading = true;
-      _statusMessage = 'Đang tải dữ liệu và đúc khuôn JSON...';
-    });
+  @override
+  void initState() {
+    super.initState();
+    // Bắt đầu kích hoạt bơm hút mạng ngay khi khởi động màn hình
+    _postsFuture = _fetchPosts();
+  }
 
-    try {
-      final url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
-      final response = await http.get(url);
+  // HÀM BƠM HÚT VÀ CHUYỂN ĐỔI LIST<POST> (Cung cấp nguồn cho FutureBuilder)
+  Future<List<Post>> _fetchPosts() async {
+    final url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
+    final response = await http.get(url);
 
-      if (response.statusCode == 200) {
-        // 1. CỐI XAY JSON: Chuyển chuỗi String thô thành danh sách động (List<dynamic>)
-        final List<dynamic> jsonList = jsonDecode(response.body);
-
-        // 2. PHỄU ĐÚC MODEL: Dùng khuôn Post.fromJson biến từng phần tử thành Object Post
-        final List<Post> parsedPosts = jsonList
-            .map((item) => Post.fromJson(item as Map<String, dynamic>))
-            .toList();
-
-        setState(() {
-          _posts = parsedPosts;
-          _statusMessage = '🎉 Đúc khuôn thành công ${_posts.length} bài Post vào RAM!';
-        });
-
-        debugPrint('Số lượng bài Post đã parse: ${_posts.length}');
-      } else {
-        setState(() {
-          _statusMessage = '❌ Server trả về lỗi: ${response.statusCode}';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _statusMessage = '❌ Lỗi mạng: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList
+          .map((item) => Post.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception('Server trả về mã lỗi: ${response.statusCode}');
     }
   }
 
@@ -83,125 +61,113 @@ class _PostListScreenState extends State<PostListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 8.2 - JSON → Model Parsing'),
+        title: const Text('Posts List (FutureBuilder)'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Thẻ trạng thái thông báo
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _posts.isNotEmpty ? Colors.green.shade50 : Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _posts.isNotEmpty ? Colors.green.shade300 : Colors.blue.shade200,
-                ),
-              ),
-              child: Row(
+      // MÀN HÌNH CẢM ỨNG THÔNG MINH (FutureBuilder)
+      body: FutureBuilder<List<Post>>(
+        future: _postsFuture,
+        builder: (context, snapshot) {
+          // 1. TRẠNG THÁI CHỜ HÀNG VỀ (Loading State)
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    _posts.isNotEmpty ? Icons.check_circle : Icons.info,
-                    color: _posts.isNotEmpty ? Colors.green : Colors.blue,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _statusMessage,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Đang kéo dữ liệu từ đám mây về...'),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
+            );
+          }
 
-            // Khung hiển thị thử nghiệm bài Post đầu tiên đã đúc khuôn thành công
-            Expanded(
-              child: _posts.isEmpty
-                  ? Center(
+          // 2. TRẠNG THÁI GẶP SỰ CỐ / ĐỨT MẠNG (Error State)
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 54, color: Colors.redAccent),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Lỗi kết nối: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          // 3. TRẠNG THÁI HÀNG ĐÃ VỀ KHO THÀNH CÔNG (Data State)
+          if (snapshot.hasData) {
+            final posts = snapshot.data!;
+
+            if (posts.isEmpty) {
+              return const Center(child: Text('Không có bài viết nào.'));
+            }
+
+            // BĂNG CHUYỀN HIỂN THỊ TỰ ĐỘNG (ListView.builder)
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blue.shade100,
                       child: Text(
-                        _isLoading
-                            ? 'Đang kéo dữ liệu từ đám mây...'
-                            : 'Nhấn nút phía dưới để nạp dữ liệu vào khuôn Model',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : Card(
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Chip(
-                                  label: Text('Post #${_posts.first.id}'),
-                                  backgroundColor: Colors.blue.shade100,
-                                ),
-                                Text(
-                                  'User ID: ${_posts.first.userId}',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 20),
-                            Text(
-                              _posts.first.title,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueAccent,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _posts.first.body,
-                              style: const TextStyle(fontSize: 14, height: 1.4),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '...và còn ${_posts.length - 1} bài viết khác đã sẵn sàng ở Step 4!',
-                              style: const TextStyle(
-                                fontStyle: FontStyle.italic,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
+                        '#${post.id}',
+                        style: const TextStyle(
+                          color: Colors.blueAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
                       ),
                     ),
-            ),
-            const SizedBox(height: 16),
+                    title: Text(
+                      post.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        post.body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          }
 
-            // Nút bấm kích hoạt tiến trình
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _isLoading ? null : _fetchAndParsePosts,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Icon(Icons.transform),
-              label: Text(
-                _isLoading ? 'Đang đúc khuôn Model...' : 'Đúc khuôn Model (Parse JSON)',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
-        ),
+          return const SizedBox.shrink();
+        },
       ),
     );
   }
