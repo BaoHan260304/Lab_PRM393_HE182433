@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'post_model.dart';
@@ -32,28 +34,52 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  // BIẾN LƯU TRỮ TIẾN TRÌNH FUTURE: Giúp FutureBuilder không bị gọi lại nhiều lần vô cớ
   late Future<List<Post>> _postsFuture;
 
   @override
   void initState() {
     super.initState();
-    // Bắt đầu kích hoạt bơm hút mạng ngay khi khởi động màn hình
     _postsFuture = _fetchPosts();
   }
 
-  // HÀM BƠM HÚT VÀ CHUYỂN ĐỔI LIST<POST> (Cung cấp nguồn cho FutureBuilder)
-  Future<List<Post>> _fetchPosts() async {
-    final url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
-    final response = await http.get(url);
+  // CẦN GẠT THỬ LẠI: Kích hoạt lại tiến trình nạp dữ liệu từ đầu
+  void _retryFetch() {
+    setState(() {
+      _postsFuture = _fetchPosts();
+    });
+  }
 
-    if (response.statusCode == 200) {
-      final List<dynamic> jsonList = jsonDecode(response.body);
-      return jsonList
-          .map((item) => Post.fromJson(item as Map<String, dynamic>))
-          .toList();
-    } else {
-      throw Exception('Server trả về mã lỗi: ${response.statusCode}');
+  // HÀM BƠM HÚT MẠNG CÓ CẢM BIẾN BẮT LỖI & TIMEOUT (Lab 8.3)
+  Future<List<Post>> _fetchPosts() async {
+    try {
+      final url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
+
+      // CẢM BIẾN CHỐNG TREO MÁY: Quá 10 giây không có mạng -> Tự ngắt kết nối
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        return jsonList
+            .map((item) => Post.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw HttpException(
+          'Máy chủ phản hồi mã lỗi ${response.statusCode}: Không thể lấy dữ liệu.',
+        );
+      }
+    } on SocketException {
+      // Bắt lỗi mất kết nối Internet hoàn toàn (chế độ máy bay, đứt wifi)
+      throw const SocketException(
+        'Không có kết nối Internet! Vui lòng kiểm tra lại Wifi/4G của bạn.',
+      );
+    } on TimeoutException {
+      // Bắt lỗi mạng quá yếu hoặc máy chủ bị sập
+      throw TimeoutException(
+        'Kết nối mạng quá chậm hoặc máy chủ không phản hồi (Timeout).',
+      );
+    } catch (e) {
+      // Các lỗi ngoại lệ phát sinh khác
+      throw Exception('Đã xảy ra sự cố không xác định: $e');
     }
   }
 
@@ -61,14 +87,21 @@ class _PostListScreenState extends State<PostListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Posts List (FutureBuilder)'),
+        title: const Text('Posts (Error Handling & Retry)'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          // Nút bấm làm mới nhanh trên thanh công cụ
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Tải lại',
+            onPressed: _retryFetch,
+          ),
+        ],
       ),
-      // MÀN HÌNH CẢM ỨNG THÔNG MINH (FutureBuilder)
       body: FutureBuilder<List<Post>>(
         future: _postsFuture,
         builder: (context, snapshot) {
-          // 1. TRẠNG THÁI CHỜ HÀNG VỀ (Loading State)
+          // 1. TRẠNG THÁI CHỜ MẠNG (Loading State)
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: Column(
@@ -76,26 +109,66 @@ class _PostListScreenState extends State<PostListScreen> {
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('Đang kéo dữ liệu từ đám mây về...'),
+                  Text(
+                    'Đang tải bài viết...',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
                 ],
               ),
             );
           }
 
-          // 2. TRẠNG THÁI GẶP SỰ CỐ / ĐỨT MẠNG (Error State)
+          // 2. TRẠNG THÁI GẶP SỰ CỐ + NÚT BẤM THỬ LẠI (Error State & Retry)
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(24.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 54, color: Colors.redAccent),
-                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off_rounded,
+                        size: 64,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Rất tiếc! Đã có lỗi xảy ra',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Text(
-                      'Lỗi kết nối: ${snapshot.error}',
+                      snapshot.error.toString().replaceAll('Exception: ', ''),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                    ),
+                    const SizedBox(height: 24),
+                    // CẦN GẠT THỬ LẠI (RETRY BUTTON)
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _retryFetch,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text(
+                        'Thử lại ngay (Retry)',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                   ],
                 ),
@@ -103,7 +176,7 @@ class _PostListScreenState extends State<PostListScreen> {
             );
           }
 
-          // 3. TRẠNG THÁI HÀNG ĐÃ VỀ KHO THÀNH CÔNG (Data State)
+          // 3. TRẠNG THÁI DỮ LIỆU ĐÃ VỀ KHO (Data State)
           if (snapshot.hasData) {
             final posts = snapshot.data!;
 
@@ -111,7 +184,6 @@ class _PostListScreenState extends State<PostListScreen> {
               return const Center(child: Text('Không có bài viết nào.'));
             }
 
-            // BĂNG CHUYỀN HIỂN THỊ TỰ ĐỘNG (ListView.builder)
             return ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               itemCount: posts.length,
