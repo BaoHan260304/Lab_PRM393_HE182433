@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'weather_model.dart';
 import 'weather_service.dart';
 
 void main() {
@@ -32,8 +33,15 @@ class WeatherHomeScreen extends StatefulWidget {
 class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   final WeatherService _weatherService = WeatherService();
 
-  String _resultText = 'Chưa nạp dữ liệu khí tượng. Nhấn nút để kiểm tra kết nối vệ tinh!';
+  WeatherModel? _weather;
+  String _errorMessage = '';
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchWeather();
+  }
 
   @override
   void dispose() {
@@ -41,36 +49,23 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
     super.dispose();
   }
 
-  // THỬ NGHIỆM GỌI API THỜI TIẾT HÀ NỘI
-  Future<void> _testWeatherCall() async {
+  // TẢI VÀ ĐÚC KHUÔN THỜI TIẾT HÀ NỘI
+  Future<void> _fetchWeather() async {
     setState(() {
       _isLoading = true;
-      _resultText = 'Đang bắt tín hiệu vệ tinh Open-Meteo...';
+      _errorMessage = '';
     });
 
     try {
       final hanoi = defaultCities.first;
-      final data = await _weatherService.fetchRawWeather(
-        latitude: hanoi.latitude,
-        longitude: hanoi.longitude,
-      );
-
-      final current = data['current'] as Map<String, dynamic>;
+      final result = await _weatherService.getWeather(hanoi);
 
       setState(() {
-        _resultText = '🛰️ KẾT NỐI VỆ TINH THÀNH CÔNG (200 OK)!\n\n'
-            '📍 Địa điểm: ${hanoi.name} (${hanoi.country})\n'
-            '🌡️ Nhiệt độ: ${current['temperature_2m']} °C\n'
-            '🤔 Cảm giác như: ${current['apparent_temperature']} °C\n'
-            '💧 Độ ẩm: ${current['relative_humidity_2m']} %\n'
-            '🌧️ Lượng mưa: ${current['precipitation']} mm\n'
-            '💨 Tốc độ gió: ${current['wind_speed_10m']} km/h\n'
-            '🏷️ Mã thời tiết (WMO Code): ${current['weather_code']}\n\n'
-            '👉 Dữ liệu đã sẵn sàng để đúc khuôn Model ở Step 3!';
+        _weather = result;
       });
     } catch (e) {
       setState(() {
-        _resultText = '❌ Lỗi kết nối: $e';
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     } finally {
       setState(() {
@@ -83,55 +78,145 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Weather Service Test (Step 2)'),
+        title: const Text('Weather Companion (Step 3)'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _isLoading ? null : _fetchWeather,
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.teal.shade200),
-                ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _resultText,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 14,
-                      height: 1.5,
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Đang nạp dữ liệu vào WeatherModel...'),
+                ],
+              ),
+            )
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 12),
+                        Text(_errorMessage, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        ElevatedButton(onPressed: _fetchWeather, child: const Text('Thử lại')),
+                      ],
                     ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _isLoading ? null : _testWeatherCall,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Icon(Icons.satellite_alt_rounded),
-              label: Text(
-                _isLoading ? 'Đang kết nối vệ tinh...' : 'Bắn API Lấy Thời Tiết Hà Nội',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
+                )
+              : _weather == null
+                  ? const SizedBox.shrink()
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. Thẻ thời tiết tổng quan
+                          Card(
+                            elevation: 3,
+                            color: Colors.teal.shade50,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20.0),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    '${_weather!.cityName}, ${_weather!.country}',
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Icon(_weather!.weatherIcon, size: 64, color: Colors.teal),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${_weather!.temperature.toStringAsFixed(1)}°C',
+                                    style: const TextStyle(
+                                      fontSize: 42,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal,
+                                    ),
+                                  ),
+                                  Text(
+                                    _weather!.weatherDescription,
+                                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                                  ),
+                                  Text(
+                                    'Cảm giác thực tế: ${_weather!.apparentTemperature.toStringAsFixed(1)}°C',
+                                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 2. BỘ NÃO KHUYẾN NGHỊ THỰC TẾ (Purpose-Driven Section)
+                          const Text(
+                            '💡 Gợi ý thực tế hôm nay:',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 10),
+
+                          _buildAdviceTile(
+                            icon: Icons.umbrella_rounded,
+                            title: 'Mang ô / áo mưa?',
+                            advice: _weather!.umbrellaAdvice,
+                            isWarning: _weather!.needUmbrella,
+                          ),
+                          const SizedBox(height: 8),
+
+                          _buildAdviceTile(
+                            icon: Icons.checkroom_rounded,
+                            title: 'Trang phục khuyên dùng',
+                            advice: _weather!.clothingAdvice,
+                            isWarning: false,
+                          ),
+                          const SizedBox(height: 8),
+
+                          _buildAdviceTile(
+                            icon: Icons.directions_run_rounded,
+                            title: 'Hoạt động ngoài trời',
+                            advice: _weather!.outdoorAdvice,
+                            isWarning: _weather!.needUmbrella,
+                          ),
+                        ],
+                      ),
+                    ),
+    );
+  }
+
+  Widget _buildAdviceTile({
+    required IconData icon,
+    required String title,
+    required String advice,
+    required bool isWarning,
+  }) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isWarning ? Colors.orange.shade100 : Colors.teal.shade100,
+          child: Icon(icon, color: isWarning ? Colors.deepOrange : Colors.teal),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(advice, style: TextStyle(color: Colors.grey.shade800, height: 1.3)),
         ),
       ),
     );

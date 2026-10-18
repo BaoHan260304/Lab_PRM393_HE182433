@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'weather_model.dart';
 
 /// VỊ TRÍ TỌA ĐỘ ĐỊA LÝ CỦA CÁC THÀNH PHỐ
 class CityLocation {
@@ -21,7 +22,7 @@ class CityLocation {
   String toString() => '$name ($country)';
 }
 
-/// DANH MỤC CÁC THÀNH PHỐ MẶC ĐỊNH SẴN SÀNG TRA CỨU
+/// DANH MỤC CÁC THÀNH PHỐ MẶC ĐỊNH
 const List<CityLocation> defaultCities = [
   CityLocation(name: 'Hà Nội', country: 'Việt Nam', latitude: 21.0285, longitude: 105.8542),
   CityLocation(name: 'TP. Hồ Chí Minh', country: 'Việt Nam', latitude: 10.8231, longitude: 106.6297),
@@ -39,7 +40,7 @@ class WeatherService {
 
   WeatherService({http.Client? client}) : _client = client ?? http.Client();
 
-  /// GỌI VỆ TINH KHÍ TƯỢNG OPEN-METEO ĐỂ LẤY THỜI TIẾT THỰC TẾ
+  /// 1. GỌI VỆ TINH LẤY DỮ LIỆU THÔ
   Future<Map<String, dynamic>> fetchRawWeather({
     required double latitude,
     required double longitude,
@@ -53,8 +54,7 @@ class WeatherService {
       final response = await _client.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        return data;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
         throw HttpException('Máy chủ khí tượng báo lỗi: ${response.statusCode}');
       }
@@ -65,6 +65,20 @@ class WeatherService {
     } catch (e) {
       throw Exception('Lỗi dịch vụ thời tiết: $e');
     }
+  }
+
+  /// 2. LẤY THỜI TIẾT VÀ TỰ ĐỘNG ĐÚC KHUÔN MODEL (WeatherModel)
+  Future<WeatherModel> getWeather(CityLocation city) async {
+    final rawData = await fetchRawWeather(
+      latitude: city.latitude,
+      longitude: city.longitude,
+    );
+
+    return WeatherModel.fromJson(
+      json: rawData,
+      cityName: city.name,
+      country: city.country,
+    );
   }
 
   void dispose() {
