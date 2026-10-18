@@ -33,6 +33,9 @@ class WeatherHomeScreen extends StatefulWidget {
 class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   final WeatherService _weatherService = WeatherService();
 
+  // Thành phố đang được chọn (Mặc định: Hà Nội)
+  CityLocation _selectedCity = defaultCities.first;
+
   WeatherModel? _weather;
   String _errorMessage = '';
   bool _isLoading = false;
@@ -40,7 +43,7 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchWeather();
+    _fetchWeatherForCity(_selectedCity);
   }
 
   @override
@@ -49,175 +52,417 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
     super.dispose();
   }
 
-  // TẢI VÀ ĐÚC KHUÔN THỜI TIẾT HÀ NỘI
-  Future<void> _fetchWeather() async {
+  // TẢI DỮ LIỆU THỜI TIẾT CHO THÀNH PHỐ ĐƯỢC CHỌN
+  Future<void> _fetchWeatherForCity(CityLocation city) async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
     try {
-      final hanoi = defaultCities.first;
-      final result = await _weatherService.getWeather(hanoi);
-
-      setState(() {
-        _weather = result;
-      });
+      final result = await _weatherService.getWeather(city);
+      if (mounted) {
+        setState(() {
+          _weather = result;
+          _selectedCity = city;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  // VUỐT ĐỂ LÀM MỚI (Pull-to-refresh)
+  Future<void> _onRefresh() async {
+    await _fetchWeatherForCity(_selectedCity);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('Weather Companion (Step 3)'),
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(Icons.wb_twilight_rounded, color: Colors.teal),
+            SizedBox(width: 8),
+            Text(
+              'Weather Companion',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _fetchWeather,
+            tooltip: 'Cập nhật',
+            onPressed: _isLoading ? null : () => _fetchWeatherForCity(_selectedCity),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Đang nạp dữ liệu vào WeatherModel...'),
-                ],
+      body: Column(
+        children: [
+          // 1. THANH CHỌN THÀNH PHỐ (City Selector Chips)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            color: Colors.white,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: defaultCities.map((city) {
+                  final isSelected = city.name == _selectedCity.name;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: Text(city.name),
+                      selected: isSelected,
+                      selectedColor: Colors.teal.shade100,
+                      labelStyle: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Colors.teal.shade900 : Colors.black87,
+                      ),
+                      onSelected: (selected) {
+                        if (selected && city.name != _selectedCity.name) {
+                          _fetchWeatherForCity(city);
+                        }
+                      },
+                    ),
+                  );
+                }).toList(),
               ),
-            )
-          : _errorMessage.isNotEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+            ),
+          ),
+          const Divider(height: 1),
+
+          // 2. KHU VỰC HIỂN THỊ CHÍNH (VỚI VUỐT ĐỂ LÀM MỚI)
+          Expanded(
+            child: _isLoading && _weather == null
+                ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                        const SizedBox(height: 12),
-                        Text(_errorMessage, textAlign: TextAlign.center),
+                        const CircularProgressIndicator(color: Colors.teal),
                         const SizedBox(height: 16),
-                        ElevatedButton(onPressed: _fetchWeather, child: const Text('Thử lại')),
+                        Text(
+                          'Đang kết nối vệ tinh tại ${_selectedCity.name}...',
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
+                        ),
                       ],
                     ),
-                  ),
-                )
-              : _weather == null
-                  ? const SizedBox.shrink()
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 1. Thẻ thời tiết tổng quan
-                          Card(
-                            elevation: 3,
-                            color: Colors.teal.shade50,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(20.0),
-                              child: Column(
+                  )
+                : _errorMessage.isNotEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 54,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Không thể lấy dữ liệu thời tiết',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey.shade700),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _fetchWeatherForCity(_selectedCity),
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Thử lại ngay'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        color: Colors.teal,
+                        onRefresh: _onRefresh,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // A. THẺ THỜI TIẾT TRUNG TÂM (Hero Weather Card)
+                              Container(
+                                padding: const EdgeInsets.all(22.0),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Colors.teal.shade500, Colors.teal.shade700],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.teal.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${_weather!.cityName}, ${_weather!.country}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (_isLoading)
+                                          const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Icon(
+                                      _weather!.weatherIcon,
+                                      size: 72,
+                                      color: Colors.yellow.shade200,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      '${_weather!.temperature.toStringAsFixed(1)}°C',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 48,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -1,
+                                      ),
+                                    ),
+                                    Text(
+                                      _weather!.weatherDescription,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Cảm giác thực tế: ${_weather!.apparentTemperature.toStringAsFixed(1)}°C',
+                                      style: TextStyle(
+                                        color: Colors.teal.shade100,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // B. BẢNG ĐỒNG HỒ 3 CHỈ SỐ MÔI TRƯỜNG (Metrics Row)
+                              Row(
                                 children: [
-                                  Text(
-                                    '${_weather!.cityName}, ${_weather!.country}',
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  _buildMetricCard(
+                                    title: 'Độ ẩm',
+                                    value: '${_weather!.humidity}%',
+                                    icon: Icons.water_drop_outlined,
+                                    color: Colors.blue,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Icon(_weather!.weatherIcon, size: 64, color: Colors.teal),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${_weather!.temperature.toStringAsFixed(1)}°C',
-                                    style: const TextStyle(
-                                      fontSize: 42,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.teal,
-                                    ),
+                                  const SizedBox(width: 10),
+                                  _buildMetricCard(
+                                    title: 'Tốc độ gió',
+                                    value: '${_weather!.windSpeed.toStringAsFixed(1)} km/h',
+                                    icon: Icons.air_rounded,
+                                    color: Colors.teal,
                                   ),
-                                  Text(
-                                    _weather!.weatherDescription,
-                                    style: const TextStyle(fontSize: 16, color: Colors.grey),
-                                  ),
-                                  Text(
-                                    'Cảm giác thực tế: ${_weather!.apparentTemperature.toStringAsFixed(1)}°C',
-                                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                  const SizedBox(width: 10),
+                                  _buildMetricCard(
+                                    title: 'Lượng mưa',
+                                    value: '${_weather!.precipitation.toStringAsFixed(1)} mm',
+                                    icon: Icons.grain_rounded,
+                                    color: Colors.indigo,
                                   ),
                                 ],
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+                              const SizedBox(height: 20),
 
-                          // 2. BỘ NÃO KHUYẾN NGHỊ THỰC TẾ (Purpose-Driven Section)
-                          const Text(
-                            '💡 Gợi ý thực tế hôm nay:',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 10),
+                              // C. BỘ NÃO LỜI KHUYÊN THỰC TẾ (Purpose-Driven Guidance)
+                              const Row(
+                                children: [
+                                  Icon(Icons.lightbulb_rounded, color: Colors.amber),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Lời khuyên hôm nay cho bạn',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
 
-                          _buildAdviceTile(
-                            icon: Icons.umbrella_rounded,
-                            title: 'Mang ô / áo mưa?',
-                            advice: _weather!.umbrellaAdvice,
-                            isWarning: _weather!.needUmbrella,
-                          ),
-                          const SizedBox(height: 8),
+                              _buildAdviceCard(
+                                icon: Icons.umbrella_rounded,
+                                title: 'Có cần mang ô không?',
+                                advice: _weather!.umbrellaAdvice,
+                                isWarning: _weather!.needUmbrella,
+                              ),
+                              const SizedBox(height: 10),
 
-                          _buildAdviceTile(
-                            icon: Icons.checkroom_rounded,
-                            title: 'Trang phục khuyên dùng',
-                            advice: _weather!.clothingAdvice,
-                            isWarning: false,
-                          ),
-                          const SizedBox(height: 8),
+                              _buildAdviceCard(
+                                icon: Icons.checkroom_rounded,
+                                title: 'Gợi ý trang phục',
+                                advice: _weather!.clothingAdvice,
+                                isWarning: false,
+                              ),
+                              const SizedBox(height: 10),
 
-                          _buildAdviceTile(
-                            icon: Icons.directions_run_rounded,
-                            title: 'Hoạt động ngoài trời',
-                            advice: _weather!.outdoorAdvice,
-                            isWarning: _weather!.needUmbrella,
+                              _buildAdviceCard(
+                                icon: Icons.directions_run_rounded,
+                                title: 'Hoạt động ngoài trời',
+                                advice: _weather!.outdoorAdvice,
+                                isWarning: _weather!.needUmbrella,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildAdviceTile({
+  // WIDGET THẺ ĐỒNG HỒ CHỈ SỐ
+  Widget _buildMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required MaterialColor color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // WIDGET THẺ LỜI KHUYÊN THỰC TẾ
+  Widget _buildAdviceCard({
     required IconData icon,
     required String title,
     required String advice,
     required bool isWarning,
   }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isWarning ? Colors.orange.shade100 : Colors.teal.shade100,
-          child: Icon(icon, color: isWarning ? Colors.deepOrange : Colors.teal),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isWarning ? Colors.orange.shade50 : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isWarning ? Colors.orange.shade300 : Colors.grey.shade200,
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: Text(advice, style: TextStyle(color: Colors.grey.shade800, height: 1.3)),
-        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: isWarning ? Colors.orange.shade100 : Colors.teal.shade100,
+            radius: 20,
+            child: Icon(icon, color: isWarning ? Colors.deepOrange : Colors.teal, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  advice,
+                  style: TextStyle(
+                    color: isWarning ? Colors.deepOrange.shade900 : Colors.grey.shade800,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
