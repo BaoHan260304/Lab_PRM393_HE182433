@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "Laptop Dell XPS 15",
+    "price": 1499.99,
+    "category": "Computers",
+    "stock": 12
+  },
+  {
+    "id": 2,
+    "name": "iPhone 16 Pro Max",
+    "price": 1199.00,
+    "category": "Smartphones",
+    "stock": 25
+  },
+  {
+    "id": 3,
+    "name": "Tai nghe Sony WH-1000XM5",
+    "price": 349.50,
+    "category": "Audio",
+    "stock": 40
+  },
+  {
+    "id": 4,
+    "name": "iPad Pro M4 11-inch",
+    "price": 999.00,
+    "category": "Tablets",
+    "stock": 18
+  },
+  {
+    "id": 5,
+    "name": "Đồng hồ Apple Watch Ultra 2",
+    "price": 799.00,
+    "category": "Wearables",
+    "stock": 15
+  }
+]
