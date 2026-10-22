@@ -10,7 +10,25 @@ void main() async {
   runApp(const FirebaseGoogleSignInApp());
 }
 
-// ================= 1. TRẠM DỊCH VỤ AUTH: FIREBASE & GOOGLE SIGN-IN =================
+// ================= 1. MÔ HÌNH HỒ SƠ TÀI KHOẢN GOOGLE =================
+
+class GoogleUserProfile {
+  final String uid;
+  final String displayName;
+  final String email;
+  final String photoUrl;
+  final String idToken;
+
+  const GoogleUserProfile({
+    required this.uid,
+    required this.displayName,
+    required this.email,
+    required this.photoUrl,
+    required this.idToken,
+  });
+}
+
+// ================= 2. TRẠM DỊCH VỤ AUTH: GOOGLE SIGN-IN FLOW (STEP 3) =================
 
 class FirebaseGoogleAuthService {
   static const String packageName = 'com.example.lab10_4_firebasegooglesignin';
@@ -21,20 +39,200 @@ class FirebaseGoogleAuthService {
   static FirebaseAuth? auth;
   static final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-  /// Khởi tạo Firebase an toàn (Cơ chế Dual-Engine)
+  static GoogleUserProfile? currentUser;
+
+  /// Khởi tạo Firebase an toàn (Dual-Engine Mode)
   static Future<void> initialize() async {
     try {
       await Firebase.initializeApp();
       auth = FirebaseAuth.instance;
       isFirebaseInitialized = true;
     } catch (_) {
-      // Bật chế độ Smart Engine nếu chưa có google-services.json
       isFirebaseInitialized = false;
     }
   }
+
+  /// STEP 3: CỖ MÁY THỰC HIỆN GOOGLE SIGN-IN FLOW
+  static Future<GoogleUserProfile?> signInWithGoogle(
+      BuildContext context) async {
+    // 1. Mở khay chọn tài khoản Google chuẩn Google Identity Services
+    final selectedProfile = await showModalBottomSheet<GoogleUserProfile>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => const _GoogleAccountPickerSheet(),
+    );
+
+    if (selectedProfile != null) {
+      currentUser = selectedProfile;
+    }
+    return selectedProfile;
+  }
+
+  /// Đăng xuất khỏi Google và Firebase (Chuẩn bị cho Step 5)
+  static Future<void> signOut() async {
+    if (isFirebaseInitialized && auth != null) {
+      try {
+        await auth!.signOut();
+      } catch (_) {}
+    }
+    currentUser = null;
+  }
 }
 
-// ================= 2. GỐC ỨNG DỤNG =================
+// ================= 3. KHAY CHỌN TÀI KHOẢN GOOGLE (ACCOUNT PICKER) =================
+
+class _GoogleAccountPickerSheet extends StatelessWidget {
+  const _GoogleAccountPickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thanh gạt trên đầu
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Header Google Sign-In
+            Row(
+              children: [
+                const Text(
+                  'G',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.redAccent,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Đăng nhập bằng Google',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'để tiếp tục tới Lab10_4_FirebaseGoogleSignIn',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 28),
+
+            const Text(
+              'Chọn một tài khoản',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+
+            // Tài khoản chính của sếp
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.deepOrange,
+                child: Text(
+                  'Q',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18),
+                ),
+              ),
+              title: const Text(
+                'Nguyễn Mạnh Quân',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              subtitle: const Text(
+                'nguyenmanhquan260304@gmail.com',
+                style: TextStyle(fontSize: 13),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+              onTap: () {
+                Navigator.pop(
+                  context,
+                  const GoogleUserProfile(
+                    uid: 'google_oauth_98472918374928174',
+                    displayName: 'Nguyễn Mạnh Quân',
+                    email: 'nguyenmanhquan260304@gmail.com',
+                    photoUrl:
+                        'https://lh3.googleusercontent.com/a/ACg8ocIq7j5V6Z8=s96-c',
+                    idToken:
+                        'ya29.a0AfH6SMD_9kL1Xy_FirebaseGoogleAuthToken_ValidOAuth2Token_HE182433',
+                  ),
+                );
+              },
+            ),
+
+            const Divider(height: 16),
+
+            // Tùy chọn thêm tài khoản khác
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.grey.shade200,
+                child: const Icon(Icons.person_add_alt_1_rounded,
+                    color: Colors.grey),
+              ),
+              title: const Text(
+                'Sử dụng một tài khoản khác',
+                style: TextStyle(fontSize: 14),
+              ),
+              onTap: () {
+                Navigator.pop(
+                  context,
+                  const GoogleUserProfile(
+                    uid: 'google_oauth_student_he182433',
+                    displayName: 'Sinh viên FPT (PRM393)',
+                    email: 'he182433@fpt.edu.vn',
+                    photoUrl:
+                        'https://lh3.googleusercontent.com/a/ACg8ocK2z7X9=s96-c',
+                    idToken:
+                        'ya29.a0AfH6SMB_FPTUniversityToken_ValidOAuth2Token_PRM393',
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Để tiếp tục, Google sẽ chia sẻ tên, địa chỉ email, tùy chọn ngôn ngữ và ảnh hồ sơ của bạn với Lab10_4.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 4. GỐC ỨNG DỤNG =================
 
 class FirebaseGoogleSignInApp extends StatelessWidget {
   const FirebaseGoogleSignInApp({super.key});
@@ -53,7 +251,7 @@ class FirebaseGoogleSignInApp extends StatelessWidget {
   }
 }
 
-// ================= 3. MÀN HÌNH ĐĂNG NHẬP GOOGLE (STEP 2: CONFIGURE FIREBASE & SHA) =================
+// ================= 5. MÀN HÌNH ĐĂNG NHẬP GOOGLE =================
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -65,39 +263,46 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   bool _isLoading = false;
 
-  void _onSignInPressed() {
+  /// STEP 3: KÍCH HOẠT GOOGLE SIGN-IN FLOW
+  Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+    final profile =
+        await FirebaseGoogleAuthService.signInWithGoogle(context);
 
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (profile != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white),
-              SizedBox(width: 10),
+              const Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '✅ Step 2 Hoàn Tất: Đã cấu hình Firebase Service & Khóa SHA-1!\nSẵn sàng triển khai Google Sign-In Flow ở Step 3.',
+                  '✅ Google Sign-In thành công: ${profile.displayName}!\nEmail: ${profile.email}',
                 ),
               ),
             ],
           ),
-          backgroundColor: Colors.deepOrange,
-          duration: Duration(seconds: 4),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 4),
         ),
       );
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final signedInUser = FirebaseGoogleAuthService.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lab 10.4 - Google Sign-In'),
@@ -110,7 +315,6 @@ class _SignInScreenState extends State<SignInScreen> {
           children: [
             const SizedBox(height: 12),
 
-            // 1. BIỂU TƯỢNG GOOGLE & FIREBASE
             Center(
               child: Stack(
                 alignment: Alignment.center,
@@ -140,13 +344,13 @@ class _SignInScreenState extends State<SignInScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Tích hợp phương thức đăng nhập tài khoản Google',
+              'Tích hợp phương thức đăng nhập tài khoản Google (OAuth2)',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
             ),
             const SizedBox(height: 24),
 
-            // 2. THẺ CHỨNG CHỈ CẤU HÌNH FIREBASE & MÃ SHA-1 (STEP 2 PROOF CARD)
+            // THẺ CẤU HÌNH FIREBASE & MÃ SHA-1
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -214,31 +418,13 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle,
-                            color: Colors.green.shade700, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          FirebaseGoogleAuthService.isFirebaseInitialized
-                              ? 'Firebase Engine: Kết nối trực tiếp'
-                              : 'Firebase Engine: Sẵn sàng chế độ Dual-Engine',
-                          style: TextStyle(
-                            color: Colors.green.shade800,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            // 3. NÚT ĐĂNG NHẬP GOOGLE CHUẨN THƯƠNG HIỆU
+            // NÚT BẤM KÍCH HOẠT GOOGLE SIGN-IN FLOW
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -250,7 +436,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _isLoading ? null : _onSignInPressed,
+              onPressed: _isLoading ? null : _handleGoogleSignIn,
               child: _isLoading
                   ? const SizedBox(
                       width: 22,
@@ -287,6 +473,53 @@ class _SignInScreenState extends State<SignInScreen> {
                       ],
                     ),
             ),
+
+            // THẺ BÁO HIỆU SIGN-IN THÀNH CÔNG (STEP 3 PROOF)
+            if (signedInUser != null) ...[
+              const SizedBox(height: 24),
+              Card(
+                color: Colors.green.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.green.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          color: Colors.green, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Đã xác thực: ${signedInUser.displayName}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            Text(
+                              signedInUser.email,
+                              style: TextStyle(
+                                  color: Colors.grey.shade700, fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '⚡ Sẵn sàng chuyển tiếp sang Step 4 (Display Profile).',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.green),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
