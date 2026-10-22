@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const RealApiLoginApp());
@@ -31,11 +35,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // THƯ KÝ THEO DÕI USERNAME & PASSWORD CỦA DUMMYJSON
   final TextEditingController _usernameController = TextEditingController(text: 'emilys');
-  final TextEditingController _passwordController = TextEditingController(text: 'emilyspassword');
+  final TextEditingController _passwordController = TextEditingController(text: 'emilyspass');
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -44,24 +48,103 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  // ================= CỖ MÁY BẮN REST API THẬT LÊN DUMMYJSON =================
+
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Form hợp lệ! Sẵn sàng cắm dây mạng REST API ở Step 3.'),
-        backgroundColor: Colors.teal,
-      ),
-    );
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. ĐỊA CHỈ TRẠM MÁY CHỦ AUTHENTICATION CỦA DUMMYJSON
+      final url = Uri.parse('https://dummyjson.com/auth/login');
+
+      // 2. BẮN GÓI TIN POST QUA ĐƯỜNG ỐNG HTTP VỚI TIMEOUT 10 GIÂY
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'username': _usernameController.text.trim(),
+              'password': _passwordController.text,
+              'expiresInMins': 30,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      // 3. XỬ LÝ MÃ PHẢN HỒI TỪ SERVER
+      if (response.statusCode == 200) {
+        // ĐĂNG NHẬP THÀNH CÔNG (200 OK)
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final String token = data['accessToken'] ?? data['token'] ?? '';
+        final String fullName = '${data['firstName']} ${data['lastName']}';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Server 200 OK: Xin chào $fullName!\n🔑 JWT Token: ${token.substring(0, 30)}...'),
+            backgroundColor: Colors.teal,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else {
+        // ĐĂNG NHẬP THẤT BẠI (MÃ 400 - INVALID CREDENTIALS)
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        final String errorMsg = errorData['message'] ?? 'Sai tài khoản hoặc mật khẩu';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi xác thực ($errorMsg)! Thử lại: emilys / emilyspass'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } on SocketException {
+      // Lỗi mất kết nối Internet
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Mất kết nối Internet! Vui lòng kiểm tra Wifi/4G.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } on TimeoutException {
+      // Lỗi mạng quá yếu hoặc máy chủ bị nghẽn
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Quá thời gian chờ phản hồi từ máy chủ (Timeout).'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      // Sự cố không xác định khác
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Sự cố: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10.2 - DummyJSON Login UI'),
+        title: const Text('Lab 10.2 - DummyJSON Real API'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
@@ -74,7 +157,6 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 20),
 
-              // 1. BIỂU TƯỢNG ĐÁM MÂY KẾT NỐI
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -91,19 +173,19 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Đăng Nhập REST API',
+                'Đăng Nhập REST API Thật',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
-                'Xác thực người dùng qua máy chủ DummyJSON',
+                'Xác thực và lấy JWT Token từ dummyjson.com',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 20),
 
-              // Thẻ ghi chú tài khoản mẫu từ DummyJSON
+              // Thẻ gợi ý tài khoản test của DummyJSON
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -117,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Tài khoản DummyJSON mẫu:\nUsername: emilys | Pass: emilyspassword',
+                        'Tài khoản DummyJSON hợp lệ:\nUsername: emilys | Pass: emilyspass',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -126,9 +208,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 2. Ô USERNAME
+              // Ô USERNAME
               TextFormField(
                 controller: _usernameController,
+                enabled: !_isLoading,
                 decoration: const InputDecoration(
                   labelText: 'Tên đăng nhập (Username)',
                   hintText: 'emilys',
@@ -146,13 +229,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 3. Ô PASSWORD
+              // Ô PASSWORD
               TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
                   labelText: 'Mật khẩu (Password)',
-                  hintText: 'emilyspassword',
+                  hintText: 'emilyspass',
                   prefixIcon: const Icon(Icons.lock_outline),
                   border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -177,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 28),
 
-              // 4. NÚT ĐĂNG NHẬP
+              // NÚT BẤM ĐĂNG NHẬP BẮN API
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -187,11 +271,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _handleLogin,
-                child: const Text(
-                  'Đăng Nhập (Call Real API)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                onPressed: _isLoading ? null : _handleLogin,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Đăng Nhập (Call Real API)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ],
           ),
