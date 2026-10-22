@@ -49,7 +49,7 @@ class SessionManager {
     };
   }
 
-  /// Xóa sạch phiên đăng nhập khi Logout (Sẽ kích hoạt ở Step 5)
+  /// Xóa sạch phiên đăng nhập khi Logout (Step 5)
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(keyToken);
@@ -112,7 +112,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (token != null && token.isNotEmpty) {
-      // STEP 4: PHÁT HIỆN TOKEN HỢP LỆ -> TỰ ĐỘNG ĐĂNG NHẬP (AUTO-LOGIN)
+      // Đã có Token -> Tự động đăng nhập vào HomeScreen
       final session = await SessionManager.getSession();
       if (!mounted) return;
 
@@ -124,12 +124,12 @@ class _SplashScreenState extends State<SplashScreen> {
             username: session[SessionManager.keyUsername] ?? 'emilys',
             avatarUrl: session[SessionManager.keyAvatar] ?? '',
             token: token,
-            isAutoLogin: true, // Đánh dấu là Auto-login từ SplashScreen
+            isAutoLogin: true,
           ),
         ),
       );
     } else {
-      // Chưa có phiên -> Chuyển vào LoginScreen
+      // Chưa có token hoặc đã bị xóa bởi Logout -> Điều hướng vào LoginScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -288,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
               username: username,
               avatarUrl: avatarUrl,
               token: token,
-              isAutoLogin: false, // Đăng nhập thủ công qua form
+              isAutoLogin: false,
             ),
           ),
         );
@@ -486,7 +486,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ================= 5. MÀN HÌNH TRANG CHỦ (STEP 4: AUTO-LOGIN IF TOKEN EXISTS) =================
+// ================= 5. MÀN HÌNH TRANG CHỦ & STEP 5: LOGOUT =================
 
 class HomeScreen extends StatelessWidget {
   final String fullName;
@@ -504,19 +504,58 @@ class HomeScreen extends StatelessWidget {
     this.isAutoLogin = false,
   });
 
+  /// STEP 5: CỖ MÁY XÓA SESSION KHỎI SHAREDPREFERENCES VÀ QUAY VỀ LOGIN
+  Future<void> _handleLogout(BuildContext context) async {
+    // 1. Quét sạch toàn bộ dữ liệu phiên lưu trữ trên máy
+    await SessionManager.clearSession();
+
+    if (!context.mounted) return;
+
+    // 2. Bắn thông báo xác nhận đã xóa Token
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('Đã đăng xuất & xóa sạch phiên SharedPreferences!'),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    // 3. Dọn sạch Stack và đưa người dùng về lại màn hình Login
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lab 10.3 - Home Dashboard'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () => _handleLogout(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // STEP 4: HUY HIỆU XÁC NHẬN AUTO-LOGIN THÀNH CÔNG
+            // HUY HIỆU XÁC NHẬN AUTO-LOGIN THÀNH CÔNG
             if (isAutoLogin)
               Container(
                 margin: const EdgeInsets.only(bottom: 20),
@@ -659,6 +698,26 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 36),
+
+            // STEP 5: NÚT ĐĂNG XUẤT XÓA SẠCH PHIÊN (LOGOUT BUTTON)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                foregroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => _handleLogout(context),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Đăng Xuất (Xóa Session & Về Login)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
