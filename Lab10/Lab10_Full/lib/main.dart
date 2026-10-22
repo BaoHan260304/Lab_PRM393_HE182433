@@ -137,6 +137,7 @@ class NotificationService {
     return true;
   }
 
+  /// STEP 4: BẮN THÔNG BÁO TỨC THÌ KHI ĐĂNG NHẬP THÀNH CÔNG (LO7 MANDATORY)
   static Future<void> showAuthSuccessNotification({
     required String userName,
     required String authMethod,
@@ -424,7 +425,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-// ================= 6. MÀN HÌNH ĐĂNG NHẬP ĐA PHƯƠNG THỨC (STEP 3) =================
+// ================= 6. MÀN HÌNH ĐĂNG NHẬP ĐA PHƯƠNG THỨC =================
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -446,13 +447,20 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoadingGoogle = false;
 
   @override
+  void initState() {
+    super.initState();
+    // STEP 4: CHỦ ĐỘNG XIN QUYỀN THÔNG BÁO KHI VÀO MÀN HÌNH LOGIN
+    NotificationService.requestPermission();
+  }
+
+  @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// CỔNG 1: ĐĂNG NHẬP DUMMYJSON REST API THẬT
+  /// CỔNG 1: ĐĂNG NHẬP DUMMYJSON REST API THẬT & BẮN THÔNG BÁO LO7
   Future<void> _handleApiLogin() async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
@@ -492,6 +500,12 @@ class _LoginScreenState extends State<LoginScreen> {
           username: username,
           avatarUrl: avatarUrl,
           provider: 'DummyJSON REST API',
+        );
+
+        // STEP 4: PHÁT THÔNG BÁO BẢO MẬT CHÀO MỪNG ĐĂNG NHẬP REST API THÀNH CÔNG (LO7)
+        await NotificationService.showAuthSuccessNotification(
+          userName: fullName,
+          authMethod: 'REST API',
         );
 
         if (!mounted) return;
@@ -559,7 +573,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// CỔNG 2: ĐĂNG NHẬP GOOGLE IDENTITY (OAUTH2)
+  /// CỔNG 2: ĐĂNG NHẬP GOOGLE IDENTITY (OAUTH2) & BẮN THÔNG BÁO LO7
   Future<void> _handleGoogleLogin() async {
     setState(() {
       _isLoadingGoogle = true;
@@ -580,6 +594,12 @@ class _LoginScreenState extends State<LoginScreen> {
         username: profile.email.split('@').first,
         avatarUrl: profile.photoUrl,
         provider: 'Google Identity (OAuth2)',
+      );
+
+      // STEP 4: PHÁT THÔNG BÁO BẢO MẬT CHÀO MỪNG ĐĂNG NHẬP GOOGLE THÀNH CÔNG (LO7)
+      await NotificationService.showAuthSuccessNotification(
+        userName: profile.displayName,
+        authMethod: 'Google OAuth2',
       );
 
       if (!mounted) return;
@@ -605,7 +625,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10 Full - Login'),
+        title: const Text('Lab 10 Full - Login Portal'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
@@ -616,7 +636,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -643,9 +663,38 @@ class _LoginScreenState extends State<LoginScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Thẻ gợi ý tài khoản mẫu DummyJSON
+              // HUY HIỆU TÍCH HỢP NOTIFICATION (LO7)
+              Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.deepPurple.shade200),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.notifications_active_rounded,
+                          size: 15, color: Colors.deepPurple),
+                      SizedBox(width: 6),
+                      Text(
+                        'LO7: Thông Báo Bảo Mật Tự Động Kích Hoạt',
+                        style: TextStyle(
+                          color: Colors.deepPurple,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -714,7 +763,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // NÚT ĐĂNG NHẬP REST API
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -744,7 +792,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ĐƯỜNG PHÂN CÁCH HOẶC
               Row(
                 children: [
                   Expanded(child: Divider(color: Colors.grey.shade300)),
@@ -764,7 +811,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
 
-              // NÚT ĐĂNG NHẬP GOOGLE
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
