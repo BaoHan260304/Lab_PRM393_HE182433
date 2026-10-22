@@ -66,6 +66,7 @@ class FirebaseGoogleAuthService {
     return selectedProfile;
   }
 
+  /// STEP 5: ĐĂNG XUẤT KHỎI GOOGLE VÀ FIREBASE
   static Future<void> signOut() async {
     if (isFirebaseInitialized && auth != null) {
       try {
@@ -264,7 +265,6 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     if (profile != null) {
-      // STEP 4: ĐIỀU HƯỚNG VÀO MÀN HÌNH PROFILE KHI ĐĂNG NHẬP THÀNH CÔNG
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -453,12 +453,43 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 }
 
-// ================= 6. MÀN HÌNH HỒ SƠ NGƯỜI DÙNG GOOGLE (STEP 4) =================
+// ================= 6. MÀN HÌNH HỒ SƠ NGƯỜI DÙNG GOOGLE & STEP 5: LOGOUT =================
 
 class ProfileScreen extends StatelessWidget {
   final GoogleUserProfile profile;
 
   const ProfileScreen({super.key, required this.profile});
+
+  /// STEP 5: CỖ MÁY ĐĂNG XUẤT GOOGLE & FIREBASE
+  Future<void> _handleLogout(BuildContext context) async {
+    await FirebaseGoogleAuthService.signOut();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Đã đăng xuất khỏi tài khoản Google & Firebase thành công!',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    // Điều hướng trở lại màn hình đăng nhập
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const SignInScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -466,6 +497,13 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Lab 10.4 - User Profile'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () => _handleLogout(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -636,6 +674,26 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 36),
+
+            // STEP 5: NÚT ĐĂNG XUẤT KHỎI GOOGLE & FIREBASE (LOGOUT BUTTON)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                foregroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => _handleLogout(context),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Đăng Xuất (Logout Google & Firebase)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
