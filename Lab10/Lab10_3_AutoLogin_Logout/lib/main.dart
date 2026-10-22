@@ -49,7 +49,7 @@ class SessionManager {
     };
   }
 
-  /// Xóa sạch phiên đăng nhập khi Logout
+  /// Xóa sạch phiên đăng nhập khi Logout (Sẽ kích hoạt ở Step 5)
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(keyToken);
@@ -73,13 +73,12 @@ class AutoLoginLogoutApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      // STEP 3: ĐẶT SPLASH SCREEN LÀM CỔNG ĐÓN TIẾP ĐẦU TIÊN CỦA APP
       home: const SplashScreen(),
     );
   }
 }
 
-// ================= 3. TRẠM GÁC CỔNG: SPLASH SCREEN (STEP 3) =================
+// ================= 3. TRẠM GÁC CỔNG: SPLASH SCREEN =================
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -97,9 +96,7 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkAuthSessionAndRoute();
   }
 
-  /// Cỗ máy kiểm tra Token và định tuyến (Routing Engine)
   Future<void> _checkAuthSessionAndRoute() async {
-    // 1. Tạo độ trễ nhân tạo 1.5 giây để màn hình Splash hiển thị mượt mà
     await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!mounted) return;
@@ -108,16 +105,14 @@ class _SplashScreenState extends State<SplashScreen> {
       _statusMessage = 'Đang kiểm tra chìa khóa Token trong SharedPreferences...';
     });
 
-    // 2. Soi trong SharedPreferences xem có Token hay không
     final String? token = await SessionManager.getToken();
 
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    // 3. ĐỊNH TUYẾN THÔNG MINH (ROUTING LOGIC)
     if (token != null && token.isNotEmpty) {
-      // Đã có Token -> Định tuyến sang HomeScreen
+      // STEP 4: PHÁT HIỆN TOKEN HỢP LỆ -> TỰ ĐỘNG ĐĂNG NHẬP (AUTO-LOGIN)
       final session = await SessionManager.getSession();
       if (!mounted) return;
 
@@ -129,11 +124,12 @@ class _SplashScreenState extends State<SplashScreen> {
             username: session[SessionManager.keyUsername] ?? 'emilys',
             avatarUrl: session[SessionManager.keyAvatar] ?? '',
             token: token,
+            isAutoLogin: true, // Đánh dấu là Auto-login từ SplashScreen
           ),
         ),
       );
     } else {
-      // Chưa có Token -> Định tuyến sang LoginScreen
+      // Chưa có phiên -> Chuyển vào LoginScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -151,7 +147,6 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo ứng dụng với vòng bảo vệ
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -169,8 +164,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Tiêu đề App
             const Text(
               'Lab 10.3 - Auth Guard',
               style: TextStyle(
@@ -182,15 +175,13 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Session Persistence & Splash Routing',
+              'Session Persistence & Auto-Login',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 14,
               ),
             ),
             const SizedBox(height: 48),
-
-            // Vòng quay tải trang
             const SizedBox(
               width: 28,
               height: 28,
@@ -200,8 +191,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Trạng thái kiểm tra Token
             Text(
               _statusMessage,
               textAlign: TextAlign.center,
@@ -217,7 +206,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-// ================= 4. MÀN HÌNH ĐĂNG NHẬP (LOGIN SCREEN) =================
+// ================= 4. MÀN HÌNH ĐĂNG NHẬP =================
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -278,7 +267,6 @@ class _LoginScreenState extends State<LoginScreen> {
         final String username = data['username'] ?? '';
         final String avatarUrl = data['image'] ?? '';
 
-        // Lưu vào SharedPreferences
         await SessionManager.saveSession(
           token: token,
           fullName: fullName,
@@ -292,7 +280,6 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
 
-        // Điều hướng vào HomeScreen
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -301,6 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
               username: username,
               avatarUrl: avatarUrl,
               token: token,
+              isAutoLogin: false, // Đăng nhập thủ công qua form
             ),
           ),
         );
@@ -498,13 +486,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ================= 5. MÀN HÌNH TRANG CHỦ TẠM THỜI (HOME SCREEN) =================
+// ================= 5. MÀN HÌNH TRANG CHỦ (STEP 4: AUTO-LOGIN IF TOKEN EXISTS) =================
 
 class HomeScreen extends StatelessWidget {
   final String fullName;
   final String username;
   final String avatarUrl;
   final String token;
+  final bool isAutoLogin;
 
   const HomeScreen({
     super.key,
@@ -512,35 +501,165 @@ class HomeScreen extends StatelessWidget {
     required this.username,
     required this.avatarUrl,
     required this.token,
+    this.isAutoLogin = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home Screen'),
+        title: const Text('Lab 10.3 - Home Dashboard'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-              const SizedBox(height: 16),
-              Text(
-                'Xin chào, $fullName!',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // STEP 4: HUY HIỆU XÁC NHẬN AUTO-LOGIN THÀNH CÔNG
+            if (isAutoLogin)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: Colors.green.shade700, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tự Động Đăng Nhập Thành Công!',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade900,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Phiên làm việc được khôi phục từ SharedPreferences.',
+                            style: TextStyle(
+                              color: Colors.green.shade800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '@$username (Đã định tuyến từ SplashScreen thành công)',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
+
+            // 1. ẢNH ĐẠI DIỆN KHÔI PHỤC TỪ SHAREDPREFERENCES
+            Center(
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.indigo.shade100,
+                    backgroundImage:
+                        avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl.isEmpty
+                        ? const Icon(Icons.person, size: 50, color: Colors.indigo)
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+
+            // 2. TÊN & USERNAME
+            Text(
+              fullName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '@$username (Phiên hoạt động)',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+
+            // 3. THẺ TOKEN TRÍCH XUẤT TỪ BỘ NHỚ FLASH
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.key_rounded, color: Colors.indigo),
+                        SizedBox(width: 8),
+                        Text(
+                          'Persisted Token (SharedPreferences):',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        token,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          height: 1.4,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(Icons.lock_clock_rounded,
+                            color: Colors.indigo.shade700, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Token tồn tại độc lập qua các lần tắt/bật app.',
+                          style: TextStyle(
+                              color: Colors.indigo.shade800, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
