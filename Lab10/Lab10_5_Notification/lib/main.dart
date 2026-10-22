@@ -64,9 +64,8 @@ class NotificationService {
     isInitialized = true;
   }
 
-  /// STEP 3: XIN QUYỀN HIỂN THỊ THÔNG BÁO CHO ANDROID 13+ (POST_NOTIFICATIONS) & IOS
+  /// Xin quyền hiển thị thông báo
   static Future<bool> requestPermission() async {
-    // 1. Kiểm tra trên nền tảng Android (API 33+)
     final androidImplementation =
         _notificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -77,7 +76,6 @@ class NotificationService {
       return granted ?? false;
     }
 
-    // 2. Kiểm tra trên nền tảng iOS
     final iOSImplementation =
         _notificationsPlugin.resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>();
@@ -92,6 +90,47 @@ class NotificationService {
     }
 
     return true;
+  }
+
+  /// STEP 4: CỖ MÁY PHÁT THÔNG BÁO TỨC THÌ (TRIGGER NOTIFICATION)
+  static Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: 'prm393_ticker',
+      icon: '@mipmap/ic_launcher',
+      playSound: true,
+      enableVibration: true,
+    );
+
+    const DarwinNotificationDetails darwinDetails =
+        DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+    );
+
+    await _notificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
+      payload: payload,
+    );
   }
 }
 
@@ -114,7 +153,7 @@ class NotificationApp extends StatelessWidget {
   }
 }
 
-// ================= 3. MÀN HÌNH ĐIỀU KHIỂN THÔNG BÁO (STEP 3: REQUEST PERMISSION) =================
+// ================= 3. MÀN HÌNH ĐIỀU KHIỂN THÔNG BÁO =================
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -126,8 +165,9 @@ class NotificationScreen extends StatefulWidget {
 class _NotificationScreenState extends State<NotificationScreen> {
   bool? _isPermissionGranted;
   bool _isRequesting = false;
+  bool _isTriggering = false;
+  int _notificationCount = 0;
 
-  /// STEP 3: KÍCH HOẠT HỘP THOẠI XIN QUYỀN HỆ THỐNG
   Future<void> _handleRequestPermission() async {
     setState(() {
       _isRequesting = true;
@@ -166,6 +206,47 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
+  /// STEP 4: KÍCH HOẠT BẮN THÔNG BÁO THỦ CÔNG
+  Future<void> _handleTriggerNotification() async {
+    setState(() {
+      _isTriggering = true;
+    });
+
+    _notificationCount++;
+
+    await NotificationService.showNotification(
+      id: 1000 + _notificationCount,
+      title: '🔔 Thông Báo Mới: Xác Thực Thành Công!',
+      body:
+          'Xin chào Nguyễn Mạnh Quân! Bạn vừa kích hoạt thông báo nội bộ #$_notificationCount (LO7) của Lab 10.5.',
+      payload: 'payload_auth_success_$_notificationCount',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isTriggering = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.send_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '🚀 Đã phát thông báo #$_notificationCount! Kiểm tra thanh thông báo đỉnh màn hình.',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.deepPurple,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,7 +261,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
           children: [
             const SizedBox(height: 12),
 
-            // BIỂU TƯỢNG THÔNG BÁO
             Center(
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -284,9 +364,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // STEP 3: THẺ TRẠNG THÁI QUYỀN HỆ THỐNG
+            // THẺ TRẠNG THÁI QUYỀN HỆ THỐNG
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -334,10 +414,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           const SizedBox(height: 2),
                           Text(
                             _isPermissionGranted == true
-                                ? '🟢 ĐÃ ĐƯỢC CẤP (Granted) - Sẵn sàng bắn thông báo'
+                                ? '🟢 ĐÃ ĐƯỢC CẤP (Granted) - Sẵn sàng'
                                 : (_isPermissionGranted == false
-                                    ? '🔴 ĐÃ BỊ TỪ CHỐI (Denied) - Cần cấp quyền'
-                                    : '🟡 CHƯA CẤP (Chạm nút bên dưới để cấp)'),
+                                    ? '🔴 ĐÃ BỊ TỪ CHỐI (Denied)'
+                                    : '🟡 CHƯA CẤP (Bấm nút Bước 1 để cấp)'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -357,18 +437,44 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
             const SizedBox(height: 24),
 
-            // NÚT BẤM XIN QUYỀN HỆ THỐNG (STEP 3 ACTION BUTTON)
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
+            // NÚT BƯỚC 1: XIN QUYỀN HỆ THỐNG
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: Colors.deepPurple,
+                side: const BorderSide(color: Colors.deepPurple, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               onPressed: _isRequesting ? null : _handleRequestPermission,
               icon: _isRequesting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.security_update_good_rounded),
+              label: const Text(
+                '1. Yêu Cầu Cấp Quyền Thông Báo',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // NÚT BƯỚC 2 (STEP 4 ACTION): BẮN THÔNG BÁO THỦ CÔNG
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _isTriggering ? null : _handleTriggerNotification,
+              icon: _isTriggering
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -377,11 +483,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.security_update_good_rounded),
+                  : const Icon(Icons.notification_add_rounded),
               label: Text(
-                _isRequesting
-                    ? 'Đang mở hộp thoại hệ thống...'
-                    : '1. Yêu Cầu Cấp Quyền Thông Báo',
+                _isTriggering
+                    ? 'Đang phát thông báo...'
+                    : '2. Kích Hoạt Bắn Thông Báo Thử Nghiệm',
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.bold),
               ),
