@@ -137,7 +137,6 @@ class NotificationService {
     return true;
   }
 
-  /// STEP 4: BẮN THÔNG BÁO TỨC THÌ KHI ĐĂNG NHẬP THÀNH CÔNG (LO7 MANDATORY)
   static Future<void> showAuthSuccessNotification({
     required String userName,
     required String authMethod,
@@ -449,7 +448,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // STEP 4: CHỦ ĐỘNG XIN QUYỀN THÔNG BÁO KHI VÀO MÀN HÌNH LOGIN
     NotificationService.requestPermission();
   }
 
@@ -460,7 +458,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// CỔNG 1: ĐĂNG NHẬP DUMMYJSON REST API THẬT & BẮN THÔNG BÁO LO7
   Future<void> _handleApiLogin() async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
@@ -502,7 +499,6 @@ class _LoginScreenState extends State<LoginScreen> {
           provider: 'DummyJSON REST API',
         );
 
-        // STEP 4: PHÁT THÔNG BÁO BẢO MẬT CHÀO MỪNG ĐĂNG NHẬP REST API THÀNH CÔNG (LO7)
         await NotificationService.showAuthSuccessNotification(
           userName: fullName,
           authMethod: 'REST API',
@@ -573,7 +569,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// CỔNG 2: ĐĂNG NHẬP GOOGLE IDENTITY (OAUTH2) & BẮN THÔNG BÁO LO7
   Future<void> _handleGoogleLogin() async {
     setState(() {
       _isLoadingGoogle = true;
@@ -596,7 +591,6 @@ class _LoginScreenState extends State<LoginScreen> {
         provider: 'Google Identity (OAuth2)',
       );
 
-      // STEP 4: PHÁT THÔNG BÁO BẢO MẬT CHÀO MỪNG ĐĂNG NHẬP GOOGLE THÀNH CÔNG (LO7)
       await NotificationService.showAuthSuccessNotification(
         userName: profile.displayName,
         authMethod: 'Google OAuth2',
@@ -665,7 +659,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // HUY HIỆU TÍCH HỢP NOTIFICATION (LO7)
               Center(
                 child: Container(
                   padding:
@@ -859,7 +852,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ================= 7. MÀN HÌNH TRANG CHỦ =================
+// ================= 7. MÀN HÌNH TRANG CHỦ & STEP 5: LOGOUT =================
 
 class HomeScreen extends StatelessWidget {
   final String fullName;
@@ -881,30 +874,299 @@ class HomeScreen extends StatelessWidget {
     required this.isAutoLogin,
   });
 
+  /// STEP 5: CỖ MÁY ĐĂNG XUẤT XÓA SẠCH PHIÊN SHAREDPREFERENCES
+  Future<void> _handleLogout(BuildContext context) async {
+    await SessionManager.clearSession();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Đã đăng xuất & xóa sạch phiên SharedPreferences!',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isGoogle = authProvider.contains('Google');
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10 Full - Home'),
+        title: const Text('Lab 10 Full - Dashboard'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.verified_user_rounded,
-                  size: 64, color: Colors.green),
-              const SizedBox(height: 16),
-              Text(
-                'Xin chào, $fullName!',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text('Phương thức: $authProvider'),
-            ],
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () => _handleLogout(context),
           ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. HUY HIỆU TỰ ĐỘNG ĐĂNG NHẬP (AUTO-LOGIN BANNER)
+            if (isAutoLogin)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome,
+                        color: Colors.green.shade700, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tự Động Đăng Nhập Thành Công!',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade900,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Phiên làm việc được tự động khôi phục từ SharedPreferences.',
+                            style: TextStyle(
+                              color: Colors.green.shade800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // 2. AVATAR NGƯỜI DÙNG (INTERNET NETWORK IMAGE HOẶC GOOGLE)
+            Center(
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 52,
+                    backgroundColor: isGoogle
+                        ? Colors.deepOrange.shade100
+                        : Colors.teal.shade100,
+                    backgroundImage:
+                        (avatarUrl.isNotEmpty && avatarUrl.startsWith('http'))
+                            ? NetworkImage(avatarUrl)
+                            : null,
+                    child: (avatarUrl.isEmpty || !avatarUrl.startsWith('http'))
+                        ? Text(
+                            fullName.isNotEmpty
+                                ? fullName[0].toUpperCase()
+                                : 'U',
+                            style: TextStyle(
+                              fontSize: 44,
+                              fontWeight: FontWeight.bold,
+                              color: isGoogle ? Colors.deepOrange : Colors.teal,
+                            ),
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check,
+                          size: 16, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 3. HỌ TÊN & EMAIL
+            Text(
+              fullName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              email.isNotEmpty ? email : '@$username',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            ),
+            const SizedBox(height: 14),
+
+            // 4. HUY HIỆU PROVIDER
+            Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isGoogle
+                      ? Colors.deepOrange.shade50
+                      : Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isGoogle
+                        ? Colors.deepOrange.shade200
+                        : Colors.teal.shade200,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isGoogle
+                          ? Icons.g_mobiledata_rounded
+                          : Icons.api_rounded,
+                      color: isGoogle ? Colors.deepOrange : Colors.teal,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Xác thực qua: $authProvider',
+                      style: TextStyle(
+                        color: isGoogle ? Colors.deepOrange : Colors.teal,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 5. THẺ KHUNG KÍNH TOKEN BẢO MẬT
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.vpn_key_rounded, color: Colors.teal),
+                        SizedBox(width: 8),
+                        Text(
+                          'Chuỗi Token Xác Thực (Persistent Session):',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        token,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          height: 1.4,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 6. NÚT PHÁT LẠI THÔNG BÁO BẢO MẬT (LO7 DEMO ACTION)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                NotificationService.showAuthSuccessNotification(
+                  userName: fullName,
+                  authMethod: authProvider,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      '🚀 Đã kích hoạt lại thông báo bảo mật LO7!',
+                    ),
+                    backgroundColor: Colors.deepPurple,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.notifications_active_rounded),
+              label: const Text(
+                'Thử Lại Thông Báo Bảo Mật (LO7)',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 7. STEP 5: NÚT ĐĂNG XUẤT XÓA SESSION VÀ VỀ LOGIN
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                foregroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => _handleLogout(context),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Đăng Xuất (Xóa Session & Về Login)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
