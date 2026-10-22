@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
@@ -195,9 +198,7 @@ class GoogleUserProfile {
 class GoogleAuthService {
   static final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-  static Future<void> initialize() async {
-    // Sẵn sàng dịch vụ Google Sign-In
-  }
+  static Future<void> initialize() async {}
 
   static Future<GoogleUserProfile?> signIn(BuildContext context) async {
     return await showModalBottomSheet<GoogleUserProfile>(
@@ -299,7 +300,7 @@ class Lab10FullApp extends StatelessWidget {
   }
 }
 
-// ================= 5. MÀN HÌNH KHỞI ĐỘNG (STEP 2: SPLASH SCREEN ROUTING) =================
+// ================= 5. MÀN HÌNH KHỞI ĐỘNG (SPLASH SCREEN) =================
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -331,7 +332,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (token != null && token.isNotEmpty) {
-      // Đã có Token -> Auto-login thẳng vào HomeScreen
       final session = await SessionManager.getSession();
       if (!mounted) return;
 
@@ -350,7 +350,6 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
       );
     } else {
-      // Chưa có phiên -> Vào LoginScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -425,41 +424,396 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-// ================= 6. MÀN HÌNH ĐĂNG NHẬP KHUNG XƯƠNG =================
+// ================= 6. MÀN HÌNH ĐĂNG NHẬP ĐA PHƯƠNG THỨC (STEP 3) =================
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _usernameController =
+      TextEditingController(text: 'emilys');
+  final TextEditingController _passwordController =
+      TextEditingController(text: 'emilyspass');
+
+  bool _obscurePassword = true;
+  bool _isLoadingApi = false;
+  bool _isLoadingGoogle = false;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  /// CỔNG 1: ĐĂNG NHẬP DUMMYJSON REST API THẬT
+  Future<void> _handleApiLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoadingApi = true;
+    });
+
+    try {
+      final url = Uri.parse('https://dummyjson.com/auth/login');
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'username': _usernameController.text.trim(),
+              'password': _passwordController.text,
+              'expiresInMins': 30,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final String token = data['accessToken'] ?? data['token'] ?? '';
+        final String fullName = '${data['firstName']} ${data['lastName']}';
+        final String username = data['username'] ?? '';
+        final String email = data['email'] ?? '';
+        final String avatarUrl = data['image'] ?? '';
+
+        await SessionManager.saveSession(
+          token: token,
+          fullName: fullName,
+          email: email,
+          username: username,
+          avatarUrl: avatarUrl,
+          provider: 'DummyJSON REST API',
+        );
+
+        if (!mounted) return;
+        setState(() {
+          _isLoadingApi = false;
+        });
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              fullName: fullName,
+              email: email,
+              username: username,
+              avatarUrl: avatarUrl,
+              token: token,
+              authProvider: 'DummyJSON REST API',
+              isAutoLogin: false,
+            ),
+          ),
+        );
+      } else {
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        final String errorMsg =
+            errorData['message'] ?? 'Sai tài khoản hoặc mật khẩu';
+
+        setState(() {
+          _isLoadingApi = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi ($errorMsg)! Thử lại: emilys / emilyspass'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } on SocketException {
+      setState(() {
+        _isLoadingApi = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Lỗi: Mất kết nối Internet!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } on TimeoutException {
+      setState(() {
+        _isLoadingApi = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Quá thời gian chờ phản hồi từ máy chủ!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _isLoadingApi = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Sự cố: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
+  /// CỔNG 2: ĐĂNG NHẬP GOOGLE IDENTITY (OAUTH2)
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isLoadingGoogle = true;
+    });
+
+    final profile = await GoogleAuthService.signIn(context);
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingGoogle = false;
+    });
+
+    if (profile != null) {
+      await SessionManager.saveSession(
+        token: profile.idToken,
+        fullName: profile.displayName,
+        email: profile.email,
+        username: profile.email.split('@').first,
+        avatarUrl: profile.photoUrl,
+        provider: 'Google Identity (OAuth2)',
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            fullName: profile.displayName,
+            email: profile.email,
+            username: profile.email.split('@').first,
+            avatarUrl: profile.photoUrl,
+            token: profile.idToken,
+            authProvider: 'Google Identity (OAuth2)',
+            isAutoLogin: false,
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10 Full - Login Portal'),
+        title: const Text('Lab 10 Full - Login'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.lock_open_rounded, size: 64, color: Colors.teal),
-            SizedBox(height: 16),
-            Text(
-              'Trạm Đăng Nhập Sẵn Sàng',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Sẵn sàng lắp ráp DummyJSON API & Google Sign-In ở Step 3',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 10),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.security_rounded,
+                    size: 64,
+                    color: Colors.teal,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Cổng Đăng Nhập Tích Hợp',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Xác thực qua DummyJSON API hoặc Google Account',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+
+              // Thẻ gợi ý tài khoản mẫu DummyJSON
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.teal.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.teal, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tài khoản DummyJSON: emilys / emilyspass',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _usernameController,
+                enabled: !_isLoadingApi && !_isLoadingGoogle,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  hintText: 'emilys',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                validator: (val) => (val == null || val.trim().isEmpty)
+                    ? 'Vui lòng nhập Username'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                enabled: !_isLoadingApi && !_isLoadingGoogle,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  hintText: 'emilyspass',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+                validator: (val) => (val == null || val.isEmpty)
+                    ? 'Vui lòng nhập Password'
+                    : null,
+              ),
+              const SizedBox(height: 24),
+
+              // NÚT ĐĂNG NHẬP REST API
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed:
+                    (_isLoadingApi || _isLoadingGoogle) ? null : _handleApiLogin,
+                icon: _isLoadingApi
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(
+                  _isLoadingApi ? 'Đang gọi API...' : 'Đăng Nhập REST API',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ĐƯỜNG PHÂN CÁCH HOẶC
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'HOẶC',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // NÚT ĐĂNG NHẬP GOOGLE
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: Colors.grey.shade300),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: (_isLoadingApi || _isLoadingGoogle)
+                    ? null
+                    : _handleGoogleLogin,
+                child: _isLoadingGoogle
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'G',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Đăng nhập với Google',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ================= 7. MÀN HÌNH TRANG CHỦ KHUNG XƯƠNG =================
+// ================= 7. MÀN HÌNH TRANG CHỦ =================
 
 class HomeScreen extends StatelessWidget {
   final String fullName;
@@ -489,19 +843,22 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.verified_user_rounded,
-                size: 64, color: Colors.green),
-            const SizedBox(height: 16),
-            Text(
-              'Xin chào, $fullName!',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            Text('Định tuyến thành công qua $authProvider'),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.verified_user_rounded,
+                  size: 64, color: Colors.green),
+              const SizedBox(height: 16),
+              Text(
+                'Xin chào, $fullName!',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text('Phương thức: $authProvider'),
+            ],
+          ),
         ),
       ),
     );
