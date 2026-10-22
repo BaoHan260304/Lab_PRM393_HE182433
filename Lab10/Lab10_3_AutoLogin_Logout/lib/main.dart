@@ -73,12 +73,151 @@ class AutoLoginLogoutApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      // STEP 3: ĐẶT SPLASH SCREEN LÀM CỔNG ĐÓN TIẾP ĐẦU TIÊN CỦA APP
+      home: const SplashScreen(),
     );
   }
 }
 
-// ================= 3. MÀN HÌNH ĐĂNG NHẬP (STEP 2: LƯU TOKEN VÀO SHAREDPREFERENCES) =================
+// ================= 3. TRẠM GÁC CỔNG: SPLASH SCREEN (STEP 3) =================
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  String _statusMessage = 'Đang khởi động cỗ máy...';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthSessionAndRoute();
+  }
+
+  /// Cỗ máy kiểm tra Token và định tuyến (Routing Engine)
+  Future<void> _checkAuthSessionAndRoute() async {
+    // 1. Tạo độ trễ nhân tạo 1.5 giây để màn hình Splash hiển thị mượt mà
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+
+    setState(() {
+      _statusMessage = 'Đang kiểm tra chìa khóa Token trong SharedPreferences...';
+    });
+
+    // 2. Soi trong SharedPreferences xem có Token hay không
+    final String? token = await SessionManager.getToken();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    // 3. ĐỊNH TUYẾN THÔNG MINH (ROUTING LOGIC)
+    if (token != null && token.isNotEmpty) {
+      // Đã có Token -> Định tuyến sang HomeScreen
+      final session = await SessionManager.getSession();
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            fullName: session[SessionManager.keyFullName] ?? 'Emily Johnson',
+            username: session[SessionManager.keyUsername] ?? 'emilys',
+            avatarUrl: session[SessionManager.keyAvatar] ?? '',
+            token: token,
+          ),
+        ),
+      );
+    } else {
+      // Chưa có Token -> Định tuyến sang LoginScreen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.indigo.shade900,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo ứng dụng với vòng bảo vệ
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                Icons.fingerprint_rounded,
+                size: 72,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Tiêu đề App
+            const Text(
+              'Lab 10.3 - Auth Guard',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Session Persistence & Splash Routing',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 48),
+
+            // Vòng quay tải trang
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Trạng thái kiểm tra Token
+            Text(
+              _statusMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 4. MÀN HÌNH ĐĂNG NHẬP (LOGIN SCREEN) =================
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -97,7 +236,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
-  String? _persistedTokenPreview;
 
   @override
   void dispose() {
@@ -115,7 +253,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
-      _persistedTokenPreview = null;
     });
 
     try {
@@ -141,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final String username = data['username'] ?? '';
         final String avatarUrl = data['image'] ?? '';
 
-        // BƯỚC 2: GHI KHẮC TOKEN VÀ HỒ SƠ VÀO BỘ NHỚ SHAREDPREFERENCES
+        // Lưu vào SharedPreferences
         await SessionManager.saveSession(
           token: token,
           fullName: fullName,
@@ -149,31 +286,22 @@ class _LoginScreenState extends State<LoginScreen> {
           avatarUrl: avatarUrl,
         );
 
-        // Đọc ngược lại từ SharedPreferences để chứng minh dữ liệu đã vào ổ cứng thiết bị
-        final String? savedToken = await SessionManager.getToken();
-
         if (!mounted) return;
 
         setState(() {
           _isLoading = false;
-          _persistedTokenPreview = savedToken;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.save_rounded, color: Colors.white),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '✅ 200 OK: Đã lưu Token vào SharedPreferences thành công!\n(User: $fullName)',
-                  ),
-                ),
-              ],
+        // Điều hướng vào HomeScreen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              fullName: fullName,
+              username: username,
+              avatarUrl: avatarUrl,
+              token: token,
             ),
-            backgroundColor: Colors.indigo,
-            duration: const Duration(seconds: 4),
           ),
         );
       } else {
@@ -187,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Lỗi ($errorMsg)! Tài khoản: emilys / emilyspass'),
+            content: Text('❌ Lỗi ($errorMsg)! Thử lại: emilys / emilyspass'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -229,7 +357,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10.3 - Step 2: Save Token'),
+        title: const Text('Lab 10.3 - Login'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
@@ -241,8 +369,6 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 10),
-
-              // Biểu tượng lưu trữ Session
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -251,7 +377,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.save_as_rounded,
+                    Icons.lock_outline_rounded,
                     size: 64,
                     color: Colors.indigo,
                   ),
@@ -259,19 +385,18 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Lưu Session SharedPreferences',
+                'Đăng Nhập Hệ Thống',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
-                'Đăng nhập và ghi nhớ Token vào bộ nhớ flash thiết bị',
+                'Đăng nhập để khởi tạo phiên SharedPreferences',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 20),
 
-              // Thẻ thông tin tài khoản mẫu
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -294,7 +419,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Ô nhập Username
               TextFormField(
                 controller: _usernameController,
                 enabled: !_isLoading,
@@ -312,7 +436,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Ô nhập Password
               TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
@@ -341,7 +464,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Nút đăng nhập
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -363,72 +485,60 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     : const Icon(Icons.login_rounded),
                 label: Text(
-                  _isLoading
-                      ? 'Đang xử lý & lưu session...'
-                      : 'Đăng Nhập & Ghi Lưu Token',
+                  _isLoading ? 'Đang xác thực...' : 'Đăng Nhập',
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-              // THẺ CHỨNG MINH TOKEN ĐÃ ĐƯỢC LƯU VÀO SHAREDPREFERENCES (STEP 2 PROOF)
-              if (_persistedTokenPreview != null) ...[
-                const SizedBox(height: 24),
-                Card(
-                  color: Colors.indigo.shade50,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.indigo.shade200),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.check_circle_rounded,
-                                color: Colors.indigo, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Đã đọc từ SharedPreferences:',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: Text(
-                            _persistedTokenPreview!,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          '⚡ Khóa "auth_token" đã nằm an toàn trong bộ nhớ flash máy.',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.indigo),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+// ================= 5. MÀN HÌNH TRANG CHỦ TẠM THỜI (HOME SCREEN) =================
+
+class HomeScreen extends StatelessWidget {
+  final String fullName;
+  final String username;
+  final String avatarUrl;
+  final String token;
+
+  const HomeScreen({
+    super.key,
+    required this.fullName,
+    required this.username,
+    required this.avatarUrl,
+    required this.token,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home Screen'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+              const SizedBox(height: 16),
+              Text(
+                'Xin chào, $fullName!',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '@$username (Đã định tuyến từ SplashScreen thành công)',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
             ],
           ),
         ),
