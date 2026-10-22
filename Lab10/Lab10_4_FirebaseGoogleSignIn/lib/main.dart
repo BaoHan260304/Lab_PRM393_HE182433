@@ -28,7 +28,7 @@ class GoogleUserProfile {
   });
 }
 
-// ================= 2. TRẠM DỊCH VỤ AUTH: GOOGLE SIGN-IN FLOW (STEP 3) =================
+// ================= 2. TRẠM DỊCH VỤ AUTH: GOOGLE & FIREBASE =================
 
 class FirebaseGoogleAuthService {
   static const String packageName = 'com.example.lab10_4_firebasegooglesignin';
@@ -41,7 +41,6 @@ class FirebaseGoogleAuthService {
 
   static GoogleUserProfile? currentUser;
 
-  /// Khởi tạo Firebase an toàn (Dual-Engine Mode)
   static Future<void> initialize() async {
     try {
       await Firebase.initializeApp();
@@ -52,10 +51,8 @@ class FirebaseGoogleAuthService {
     }
   }
 
-  /// STEP 3: CỖ MÁY THỰC HIỆN GOOGLE SIGN-IN FLOW
   static Future<GoogleUserProfile?> signInWithGoogle(
       BuildContext context) async {
-    // 1. Mở khay chọn tài khoản Google chuẩn Google Identity Services
     final selectedProfile = await showModalBottomSheet<GoogleUserProfile>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -69,7 +66,6 @@ class FirebaseGoogleAuthService {
     return selectedProfile;
   }
 
-  /// Đăng xuất khỏi Google và Firebase (Chuẩn bị cho Step 5)
   static Future<void> signOut() async {
     if (isFirebaseInitialized && auth != null) {
       try {
@@ -80,7 +76,7 @@ class FirebaseGoogleAuthService {
   }
 }
 
-// ================= 3. KHAY CHỌN TÀI KHOẢN GOOGLE (ACCOUNT PICKER) =================
+// ================= 3. KHAY CHỌN TÀI KHOẢN GOOGLE =================
 
 class _GoogleAccountPickerSheet extends StatelessWidget {
   const _GoogleAccountPickerSheet();
@@ -98,7 +94,6 @@ class _GoogleAccountPickerSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thanh gạt trên đầu
             Center(
               child: Container(
                 width: 40,
@@ -110,8 +105,6 @@ class _GoogleAccountPickerSheet extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Header Google Sign-In
             Row(
               children: [
                 const Text(
@@ -143,14 +136,11 @@ class _GoogleAccountPickerSheet extends StatelessWidget {
               ],
             ),
             const Divider(height: 28),
-
             const Text(
               'Chọn một tài khoản',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-
-            // Tài khoản chính của sếp
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const CircleAvatar(
@@ -188,10 +178,7 @@ class _GoogleAccountPickerSheet extends StatelessWidget {
                 );
               },
             ),
-
             const Divider(height: 16),
-
-            // Tùy chọn thêm tài khoản khác
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(
@@ -220,7 +207,6 @@ class _GoogleAccountPickerSheet extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
-
             Text(
               'Để tiếp tục, Google sẽ chia sẻ tên, địa chỉ email, tùy chọn ngôn ngữ và ảnh hồ sơ của bạn với Lab10_4.',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
@@ -263,7 +249,6 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   bool _isLoading = false;
 
-  /// STEP 3: KÍCH HOẠT GOOGLE SIGN-IN FLOW
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
@@ -279,21 +264,11 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     if (profile != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '✅ Google Sign-In thành công: ${profile.displayName}!\nEmail: ${profile.email}',
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green.shade700,
-          duration: const Duration(seconds: 4),
+      // STEP 4: ĐIỀU HƯỚNG VÀO MÀN HÌNH PROFILE KHI ĐĂNG NHẬP THÀNH CÔNG
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProfileScreen(profile: profile),
         ),
       );
     }
@@ -301,8 +276,6 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final signedInUser = FirebaseGoogleAuthService.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lab 10.4 - Google Sign-In'),
@@ -422,9 +395,9 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-            // NÚT BẤM KÍCH HOẠT GOOGLE SIGN-IN FLOW
+            // NÚT ĐĂNG NHẬP GOOGLE
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -473,53 +446,196 @@ class _SignInScreenState extends State<SignInScreen> {
                       ],
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-            // THẺ BÁO HIỆU SIGN-IN THÀNH CÔNG (STEP 3 PROOF)
-            if (signedInUser != null) ...[
-              const SizedBox(height: 24),
-              Card(
-                color: Colors.green.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.green.shade300),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded,
-                          color: Colors.green, size: 28),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Đã xác thực: ${signedInUser.displayName}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            Text(
-                              signedInUser.email,
-                              style: TextStyle(
-                                  color: Colors.grey.shade700, fontSize: 12),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              '⚡ Sẵn sàng chuyển tiếp sang Step 4 (Display Profile).',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.green),
-                            ),
-                          ],
-                        ),
+// ================= 6. MÀN HÌNH HỒ SƠ NGƯỜI DÙNG GOOGLE (STEP 4) =================
+
+class ProfileScreen extends StatelessWidget {
+  final GoogleUserProfile profile;
+
+  const ProfileScreen({super.key, required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 10.4 - User Profile'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 10),
+
+            // 1. AVATAR GOOGLE & HUY HIỆU XÁC THỰC
+            Center(
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 54,
+                    backgroundColor: Colors.deepOrange.shade100,
+                    child: Text(
+                      profile.displayName.isNotEmpty
+                          ? profile.displayName[0].toUpperCase()
+                          : 'U',
+                      style: const TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepOrange,
                       ),
-                    ],
+                    ),
                   ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check,
+                            size: 14, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 2. TÊN & EMAIL
+            Text(
+              profile.displayName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              profile.email,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+
+            // 3. HUY HIỆU AUTH PROVIDER (GOOGLE IDENTITY)
+            Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.deepOrange.shade200),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.security_rounded,
+                        color: Colors.deepOrange, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Provider: google.com (Firebase Auth)',
+                      style: TextStyle(
+                        color: Colors.deepOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
+            const SizedBox(height: 24),
+
+            // 4. THẺ THÔNG TIN ĐỊNH DANH GOOGLE UID & OAUTH2 TOKEN
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.badge_rounded, color: Colors.deepOrange),
+                        SizedBox(width: 8),
+                        Text(
+                          'Google User ID (UID):',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        profile.uid,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Row(
+                      children: [
+                        Icon(Icons.vpn_key_rounded, color: Colors.deepOrange),
+                        SizedBox(width: 8),
+                        Text(
+                          'Google OAuth2 ID Token:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        profile.idToken,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          height: 1.4,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
