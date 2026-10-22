@@ -29,13 +29,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // CẦU DAO TỔNG: Quản lý trạng thái và các van kiểm tra của Form
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _isLoading = false; // TRẠNG THÁI CHỜ PHẢN HỒI BACKEND
 
   @override
   void dispose() {
@@ -43,8 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-
-  // ================= CÁC TRẠM KIỂM SOÁT ĐẦU VÀO (VALIDATORS) =================
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -54,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!email.contains('@') || !email.contains('.')) {
       return 'Email không đúng định dạng (vd: admin@test.com)';
     }
-    return null; // Dữ liệu chuẩn
+    return null;
   }
 
   String? _validatePassword(String? value) {
@@ -67,33 +65,74 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  void _handleLogin() {
-    // 1. KÉO CẦU DAO KIỂM TRA: Nếu có ô vi phạm, dừng ngay và hiện cảnh báo đỏ
+  // ================= BỘ NÃO GIẢ LẬP BACKEND (MOCK AUTHENTICATION) =================
+
+  Future<void> _handleLogin() async {
+    // 1. Kiểm tra van an toàn dữ liệu
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // 2. NẾU VƯỢT QUA TẤT CẢ CÁC VAN KIỂM SOÁT
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Dữ liệu hợp lệ! Đang chuẩn bị chuyển sang Step 4 giả lập backend.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    // 2. Tự động hạ bàn phím xuống
+    FocusScope.of(context).unfocus();
+
+    // 3. Khóa nút bấm và bật bánh đà xoay vòng Loading
+    setState(() {
+      _isLoading = true;
+    });
+
+    // 4. Giả lập độ trễ truyền dữ liệu qua Internet (2 giây)
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    // 5. Kiểm tra thông tin tài khoản thử nghiệm
+    if (email == 'admin@test.com' && password == '123456') {
+      // ĐĂNG NHẬP THÀNH CÔNG: Sinh ra Mock Token
+      const mockToken = 'mock_jwt_token_987654321_success';
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎉 Xác thực thành công! Cấp chìa khóa: $mockToken'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      // ĐĂNG NHẬP THẤT BẠI: Báo lỗi và mở lại nút bấm
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Sai email hoặc mật khẩu! (Thử: admin@test.com / 123456)'),
+          backgroundColor: Colors.redAccent,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lab 10.1 - Form Validation'),
+        title: const Text('Lab 10.1 - Mock Backend Login'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
-          key: _formKey, // Gắn cầu dao tổng vào Form
-          autovalidateMode: AutovalidateMode.onUserInteraction, // Phản hồi tức thì
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -108,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.verified_user_outlined,
+                    Icons.security_rounded,
                     size: 64,
                     color: Colors.blueAccent,
                   ),
@@ -116,25 +155,26 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Đăng Nhập Hệ Thống',
+                'Đăng Nhập Giả Lập',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
-                'Nhập thông tin xác thực để tiếp tục',
+                'Tài khoản test: admin@test.com | Pass: 123456',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const SizedBox(height: 32),
 
-              // 2. Ô NHẬP EMAIL CÓ GẮN VAN KIỂM SOÁT
+              // 2. Ô EMAIL
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                enabled: !_isLoading, // Khóa ô nhập khi đang gọi backend
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  hintText: 'Nhập email (vd: admin@test.com)',
+                  hintText: 'admin@test.com',
                   prefixIcon: Icon(Icons.email_outlined),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -144,13 +184,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 3. Ô NHẬP MẬT KHẨU CÓ GẮN VAN KIỂM SOÁT
+              // 3. Ô MẬT KHẨU
               TextFormField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
                   labelText: 'Mật khẩu',
-                  hintText: 'Tối thiểu 6 ký tự',
+                  hintText: '123456',
                   prefixIcon: const Icon(Icons.lock_outline),
                   border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -170,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 28),
 
-              // 4. NÚT BẤM ĐĂNG NHẬP
+              // 4. NÚT BẤM ĐĂNG NHẬP CÓ HIỆU ỨNG LOADING XOAY VÒNG
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -180,11 +221,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _handleLogin,
-                child: const Text(
-                  'Đăng Nhập (Sign In)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                // Vô hiệu hóa nút bấm khi đang trong tiến trình Loading
+                onPressed: _isLoading ? null : _handleLogin,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Đăng Nhập (Sign In)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ],
           ),
