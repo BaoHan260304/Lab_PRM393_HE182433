@@ -21,7 +21,7 @@ class NotificationService {
 
   static bool isInitialized = false;
 
-  /// STEP 2: THIẾT LẬP FLUTTER_LOCAL_NOTIFICATIONS & TẠO ANDROID CHANNEL
+  /// Thiết lập flutter_local_notifications & Android Channel
   static Future<void> initialize() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -41,11 +41,10 @@ class NotificationService {
     await _notificationsPlugin.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint('Người dùng bấm vào thông báo: ${response.payload}');
+        debugPrint('Người dùng chạm vào thông báo: ${response.payload}');
       },
     );
 
-    // Đăng ký kênh thông báo ưu tiên cao trên Android
     final androidImplementation =
         _notificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -63,6 +62,36 @@ class NotificationService {
     }
 
     isInitialized = true;
+  }
+
+  /// STEP 3: XIN QUYỀN HIỂN THỊ THÔNG BÁO CHO ANDROID 13+ (POST_NOTIFICATIONS) & IOS
+  static Future<bool> requestPermission() async {
+    // 1. Kiểm tra trên nền tảng Android (API 33+)
+    final androidImplementation =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidImplementation != null) {
+      final bool? granted =
+          await androidImplementation.requestNotificationsPermission();
+      return granted ?? false;
+    }
+
+    // 2. Kiểm tra trên nền tảng iOS
+    final iOSImplementation =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
+
+    if (iOSImplementation != null) {
+      final bool? granted = await iOSImplementation.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      return granted ?? false;
+    }
+
+    return true;
   }
 }
 
@@ -85,7 +114,7 @@ class NotificationApp extends StatelessWidget {
   }
 }
 
-// ================= 3. MÀN HÌNH ĐIỀU KHIỂN THÔNG BÁO (STEP 2: SETUP) =================
+// ================= 3. MÀN HÌNH ĐIỀU KHIỂN THÔNG BÁO (STEP 3: REQUEST PERMISSION) =================
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -95,6 +124,48 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
+  bool? _isPermissionGranted;
+  bool _isRequesting = false;
+
+  /// STEP 3: KÍCH HOẠT HỘP THOẠI XIN QUYỀN HỆ THỐNG
+  Future<void> _handleRequestPermission() async {
+    setState(() {
+      _isRequesting = true;
+    });
+
+    final bool granted = await NotificationService.requestPermission();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isPermissionGranted = granted;
+      _isRequesting = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              granted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                granted
+                    ? '✅ Đã cấp quyền thông báo thành công (POST_NOTIFICATIONS: Granted)!'
+                    : '❌ Quyền thông báo bị từ chối hoặc chưa được cấp.',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: granted ? Colors.green.shade700 : Colors.redAccent,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,7 +180,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           children: [
             const SizedBox(height: 12),
 
-            // 1. BIỂU TƯỢNG THÔNG BÁO
+            // BIỂU TƯỢNG THÔNG BÁO
             Center(
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -139,7 +210,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 2. THẺ CHỨNG CHỈ CẤU HÌNH KÊNH THÔNG BÁO (STEP 2 PROOF CARD)
+            // THẺ CẤU HÌNH KÊNH THÔNG BÁO
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -202,33 +273,117 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Importance.max (Hiển thị biểu ngữ Heads-up Pop-up)',
+                      'Importance.max (Pop-up Banner & Rung & Âm thanh)',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Colors.deepPurple,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle,
-                            color: Colors.green.shade700, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          NotificationService.isInitialized
-                              ? 'Trạng thái: Đã tạo kênh & sẵn sàng hoạt động'
-                              : 'Trạng thái: Đang khởi tạo...',
-                          style: TextStyle(
-                            color: Colors.green.shade800,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // STEP 3: THẺ TRẠNG THÁI QUYỀN HỆ THỐNG
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: _isPermissionGranted == true
+                      ? Colors.green.shade300
+                      : (_isPermissionGranted == false
+                          ? Colors.red.shade300
+                          : Colors.amber.shade300),
+                ),
+              ),
+              color: _isPermissionGranted == true
+                  ? Colors.green.shade50.withValues(alpha: 0.5)
+                  : (_isPermissionGranted == false
+                      ? Colors.red.shade50.withValues(alpha: 0.5)
+                      : Colors.amber.shade50.withValues(alpha: 0.5)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isPermissionGranted == true
+                          ? Icons.verified_rounded
+                          : (_isPermissionGranted == false
+                              ? Icons.gpp_bad_rounded
+                              : Icons.security_rounded),
+                      color: _isPermissionGranted == true
+                          ? Colors.green.shade700
+                          : (_isPermissionGranted == false
+                              ? Colors.redAccent
+                              : Colors.amber.shade800),
+                      size: 28,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Quyền Thông Báo (Android 13+):',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            _isPermissionGranted == true
+                                ? '🟢 ĐÃ ĐƯỢC CẤP (Granted) - Sẵn sàng bắn thông báo'
+                                : (_isPermissionGranted == false
+                                    ? '🔴 ĐÃ BỊ TỪ CHỐI (Denied) - Cần cấp quyền'
+                                    : '🟡 CHƯA CẤP (Chạm nút bên dưới để cấp)'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _isPermissionGranted == true
+                                  ? Colors.green.shade800
+                                  : (_isPermissionGranted == false
+                                      ? Colors.red.shade800
+                                      : Colors.amber.shade900),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // NÚT BẤM XIN QUYỀN HỆ THỐNG (STEP 3 ACTION BUTTON)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _isRequesting ? null : _handleRequestPermission,
+              icon: _isRequesting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.security_update_good_rounded),
+              label: Text(
+                _isRequesting
+                    ? 'Đang mở hộp thoại hệ thống...'
+                    : '1. Yêu Cầu Cấp Quyền Thông Báo',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ],
