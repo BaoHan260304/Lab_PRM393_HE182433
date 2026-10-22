@@ -21,6 +21,10 @@ class NotificationService {
 
   static bool isInitialized = false;
 
+  /// Kênh lắng nghe phản hồi khi người dùng chạm vào thông báo từ thanh hệ thống
+  static final ValueNotifier<String?> onNotificationPayload =
+      ValueNotifier<String?>(null);
+
   /// Thiết lập flutter_local_notifications & Android Channel
   static Future<void> initialize() async {
     const AndroidInitializationSettings androidSettings =
@@ -41,7 +45,9 @@ class NotificationService {
     await _notificationsPlugin.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint('Người dùng chạm vào thông báo: ${response.payload}');
+        // Bắt sự kiện người dùng chạm vào thông báo trên thanh Notification Bar
+        onNotificationPayload.value = response.payload;
+        debugPrint('Hệ thống tiếp nhận tương tác thông báo: ${response.payload}');
       },
     );
 
@@ -92,7 +98,7 @@ class NotificationService {
     return true;
   }
 
-  /// STEP 4: CỖ MÁY PHÁT THÔNG BÁO TỨC THÌ (TRIGGER NOTIFICATION)
+  /// Phát thông báo tức thì
   static Future<void> showNotification({
     required int id,
     required String title,
@@ -132,6 +138,11 @@ class NotificationService {
       payload: payload,
     );
   }
+
+  /// STEP 5: HỦY / DỌN DẸP TOÀN BỘ THÔNG BÁO KHỎI THANH TRẠNG THÁI
+  static Future<void> cancelAll() async {
+    await _notificationsPlugin.cancelAll();
+  }
 }
 
 // ================= 2. GỐC ỨNG DỤNG =================
@@ -153,7 +164,7 @@ class NotificationApp extends StatelessWidget {
   }
 }
 
-// ================= 3. MÀN HÌNH ĐIỀU KHIỂN THÔNG BÁO =================
+// ================= 3. MÀN HÌNH ĐIỀU KHIỂN & KIỂM CHỨNG HỆ THỐNG =================
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -167,6 +178,41 @@ class _NotificationScreenState extends State<NotificationScreen> {
   bool _isRequesting = false;
   bool _isTriggering = false;
   int _notificationCount = 0;
+  final List<String> _verificationLogs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _verificationLogs.add('⚡ [Khởi tạo]: Notification Channel đã kích hoạt.');
+
+    // STEP 5: LẮNG NGHE PHẢN HỒI KHI NGƯỜI DÙNG TƯƠNG TÁC VỚI THÔNG BÁO HỆ THỐNG
+    NotificationService.onNotificationPayload.addListener(_onPayloadReceived);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.onNotificationPayload
+        .removeListener(_onPayloadReceived);
+    super.dispose();
+  }
+
+  void _onPayloadReceived() {
+    final payload = NotificationService.onNotificationPayload.value;
+    if (payload != null && mounted) {
+      setState(() {
+        _verificationLogs.insert(
+          0,
+          '👆 [Chạm thông báo]: Hệ thống tiếp nhận payload: "$payload"',
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📱 Đã mở thông báo từ thanh hệ thống: $payload'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    }
+  }
 
   Future<void> _handleRequestPermission() async {
     setState(() {
@@ -180,6 +226,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
     setState(() {
       _isPermissionGranted = granted;
       _isRequesting = false;
+      _verificationLogs.insert(
+        0,
+        granted
+            ? '✅ [Quyền hạn]: Hệ thống Android cấp quyền POST_NOTIFICATIONS.'
+            : '❌ [Quyền hạn]: Người dùng từ chối cấp quyền thông báo.',
+      );
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -206,26 +258,33 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  /// STEP 4: KÍCH HOẠT BẮN THÔNG BÁO THỦ CÔNG
   Future<void> _handleTriggerNotification() async {
     setState(() {
       _isTriggering = true;
     });
 
     _notificationCount++;
+    final int notifId = 1000 + _notificationCount;
+    final String notifTitle = '🔔 Thông Báo Mới: Xác Thực Thành Công!';
+    final String notifBody =
+        'Xin chào Nguyễn Mạnh Quân! Bạn vừa kích hoạt thông báo #$_notificationCount (LO7) của Lab 10.5.';
+    final String notifPayload = 'payload_auth_success_$_notificationCount';
 
     await NotificationService.showNotification(
-      id: 1000 + _notificationCount,
-      title: '🔔 Thông Báo Mới: Xác Thực Thành Công!',
-      body:
-          'Xin chào Nguyễn Mạnh Quân! Bạn vừa kích hoạt thông báo nội bộ #$_notificationCount (LO7) của Lab 10.5.',
-      payload: 'payload_auth_success_$_notificationCount',
+      id: notifId,
+      title: notifTitle,
+      body: notifBody,
+      payload: notifPayload,
     );
 
     if (!mounted) return;
 
     setState(() {
       _isTriggering = false;
+      _verificationLogs.insert(
+        0,
+        '🚀 [Đã phát]: Thông báo #$_notificationCount (ID: $notifId) gửi tới System Tray.',
+      );
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -247,19 +306,47 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
+  /// STEP 5: DỌN SẠCH CÁC THÔNG BÁO ĐANG HIỂN THỊ
+  Future<void> _handleCancelAll() async {
+    await NotificationService.cancelAll();
+    if (!mounted) return;
+
+    setState(() {
+      _verificationLogs.insert(
+        0,
+        '🧹 [Dọn dẹp]: Đã xóa sạch tất cả thông báo khỏi thanh trạng thái.',
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã dọn sạch thông báo khỏi thanh trạng thái!'),
+        backgroundColor: Colors.grey,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lab 10.5 - Local Notification'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            tooltip: 'Xóa sạch thông báo',
+            icon: const Icon(Icons.clear_all_rounded),
+            onPressed: _handleCancelAll,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             Center(
               child: Container(
@@ -275,7 +362,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             const Text(
               'Local Notification (LO7)',
@@ -284,11 +371,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Tích hợp thông báo đẩy cục bộ trên Android/iOS',
+              'Tích hợp và kiểm chứng thông báo đẩy cục bộ trên Android/iOS',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // THẺ CẤU HÌNH KÊNH THÔNG BÁO
             Card(
@@ -299,74 +386,37 @@ class _NotificationScreenState extends State<NotificationScreen> {
               ),
               color: Colors.deepPurple.shade50.withValues(alpha: 0.5),
               child: Padding(
-                padding: const EdgeInsets.all(18.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Icon(Icons.settings_suggest_rounded,
-                            color: Colors.deepPurple.shade800, size: 22),
+                            color: Colors.deepPurple.shade800, size: 20),
                         const SizedBox(width: 8),
                         Text(
                           'Cấu hình flutter_local_notifications',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                            fontSize: 14,
                             color: Colors.deepPurple.shade900,
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 20),
-                    const Text(
-                      '📡 Notification Channel ID:',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 2),
+                    const Divider(height: 16),
                     Text(
-                      NotificationService.channelId,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '🏷️ Channel Name:',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      NotificationService.channelName,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade700),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '⚡ Mức độ ưu tiên (Importance):',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Importance.max (Pop-up Banner & Rung & Âm thanh)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.deepPurple,
-                      ),
+                      '📡 Channel: ${NotificationService.channelId} • Max Importance (Banner + Rung + Chuông)',
+                      style: const TextStyle(fontSize: 11, height: 1.4),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // THẺ TRẠNG THÁI QUYỀN HỆ THỐNG
+            // THẺ TRẠNG THÁI QUYỀN
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -385,7 +435,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       ? Colors.red.shade50.withValues(alpha: 0.5)
                       : Colors.amber.shade50.withValues(alpha: 0.5)),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(14.0),
                 child: Row(
                   children: [
                     Icon(
@@ -399,43 +449,32 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           : (_isPermissionGranted == false
                               ? Colors.redAccent
                               : Colors.amber.shade800),
-                      size: 28,
+                      size: 26,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Quyền Thông Báo (Android 13+):',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _isPermissionGranted == true
-                                ? '🟢 ĐÃ ĐƯỢC CẤP (Granted) - Sẵn sàng'
-                                : (_isPermissionGranted == false
-                                    ? '🔴 ĐÃ BỊ TỪ CHỐI (Denied)'
-                                    : '🟡 CHƯA CẤP (Bấm nút Bước 1 để cấp)'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _isPermissionGranted == true
-                                  ? Colors.green.shade800
-                                  : (_isPermissionGranted == false
-                                      ? Colors.red.shade800
-                                      : Colors.amber.shade900),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        _isPermissionGranted == true
+                            ? '🟢 Quyền Android 13+: ĐÃ ĐƯỢC CẤP (Granted)'
+                            : (_isPermissionGranted == false
+                                ? '🔴 Quyền Android 13+: BỊ TỪ CHỐI (Denied)'
+                                : '🟡 Quyền Android 13+: CHƯA CẤP'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _isPermissionGranted == true
+                              ? Colors.green.shade900
+                              : (_isPermissionGranted == false
+                                  ? Colors.red.shade900
+                                  : Colors.amber.shade900),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // NÚT BƯỚC 1: XIN QUYỀN HỆ THỐNG
             OutlinedButton.icon(
@@ -460,9 +499,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // NÚT BƯỚC 2 (STEP 4 ACTION): BẮN THÔNG BÁO THỦ CÔNG
+            // NÚT BƯỚC 2: BẮN THÔNG BÁO THỦ CÔNG
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -490,6 +529,80 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     : '2. Kích Hoạt Bắn Thông Báo Thử Nghiệm',
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // STEP 5: HỘP KIỂM CHỨNG HỆ THỐNG (SYSTEM VERIFICATION LOGS)
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.terminal_rounded,
+                                color: Colors.deepPurple),
+                            SizedBox(width: 8),
+                            Text(
+                              'Nhật ký kiểm chứng hệ thống (LO7):',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '${_verificationLogs.length} sự kiện',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 130,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade900,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListView.builder(
+                        itemCount: _verificationLogs.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: Text(
+                              _verificationLogs[index],
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                color: Colors.greenAccent,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '⚡ Vuốt thanh trạng thái đỉnh màn hình xuống hoặc chạm vào thông báo để kiểm chứng phản hồi hệ thống.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
